@@ -12,7 +12,6 @@ from typing import (
     Tuple as T_Tuple,
     Match,
     Set,
-    Iterable,
 )
 from pebble import ProcessPool
 from collections import Counter
@@ -221,12 +220,16 @@ class EvaluatorBase:
                     break
             else:
                 ans_votes[answer] += 1
-            maj_ans = ans_votes.most_common(1)[0][0]
-            if maj_ans == "" and len(ans_votes) > 1:
-                maj_ans = ans_votes.most_common(2)[1][0]
+            maj_ans = self.get_maj_ans_from_votes(ans_votes)
             maj_answers.append(maj_ans)
 
         return maj_answers
+
+    def get_maj_ans_from_votes(self, ans_votes: Counter[str]) -> str:
+        maj_ans = ans_votes.most_common(1)[0][0]
+        if maj_ans == "" and len(ans_votes) > 1:
+            maj_ans = ans_votes.most_common(2)[1][0]
+        return maj_ans
 
 
 DEF_TIMEOUT = 5
@@ -241,36 +244,42 @@ class EvaluatorBatchBase(EvaluatorBase):
         Whether to extract answers strictly. If `False`, speculate the answer from the last number if needed.
     timeout : int, default: DEF_TIMEOUT:=5
         The timeout for each evaluation in seconds.
+    n_procs: int, default: 2
+        The number of processes to use for multiprocessing.
+    use_tqdm: bool, default: True
+        Whether to use tqdm for progress bar.
     """
 
-    def __init__(self, strict_extract: bool = True, timeout: int = DEF_TIMEOUT):
+    def __init__(
+        self,
+        strict_extract: bool = True,
+        timeout: int = DEF_TIMEOUT,
+        n_procs: int = 2,
+        use_tqdm: bool = True,
+    ):
         EvaluatorBase.__init__(self)
         self.strict_extract: bool = strict_extract
         self.timeout: int = timeout
+        self.n_procs: int = n_procs
+        self.use_tqdm: bool = use_tqdm
 
     def batch_eval(
         self,
         ref_answers: List[str],
         resps: List[str],
-        n_procs: int = 2,
-        use_tqdm: bool = True,
     ) -> T_Tuple[List[str], List[bool]]:
         """Evaluate a batch of `resps` against `ref_answers`."""
-        pred_answers: List[str] = self.batch_extract_ans(resps, n_procs, use_tqdm)
-        corrects: List[bool] = self.batch_eq(
-            ref_answers, pred_answers, n_procs, use_tqdm
-        )
+        pred_answers: List[str] = self.batch_extract_ans(resps)
+        corrects: List[bool] = self.batch_eq(ref_answers, pred_answers)
         return pred_answers, corrects
 
     def batch_extract_ans(
         self,
         resps: List[str],
-        n_procs: int = 2,
-        use_tqdm: bool = True,
     ) -> List[str]:
         """Extract answers from a batch of responses."""
         answers: List[str] = self.batch_exec(
-            self.extract_ans, [(resp,) for resp in resps], n_procs, use_tqdm, def_val=""
+            self.extract_ans, [(resp,) for resp in resps], def_val=""
         )
         return answers
 
@@ -278,8 +287,6 @@ class EvaluatorBatchBase(EvaluatorBase):
         self,
         ref_answers: List[str],
         pred_answers: List[str],
-        n_procs: int = 2,
-        use_tqdm: bool = True,
     ) -> List[bool]:
         """Evaluate a batch of `pred_answers` against `ref_answers`."""
         uniq_ref_pref_ans_pairs: Set[T_Tuple[str, str]] = set(
@@ -289,8 +296,6 @@ class EvaluatorBatchBase(EvaluatorBase):
         corrects: List[bool] = self.batch_exec(
             self.eq,
             uniq_ref_pref_ans_pairs,
-            n_procs,
-            use_tqdm,
             desc="Evaluating",
             def_val=False,
         )
@@ -304,23 +309,63 @@ class EvaluatorBatchBase(EvaluatorBase):
             for ref, pred in zip(ref_answers, pred_answers)
         ]
 
+    def batch_get_maj_answers(self, answers_list: List[List[str]]) -> List[List[str]]:
+        """Get the majority answers for a batch of answers."""
+        maj_answers_list: List[List[str]] = []
+        # Gather all pairs to evaluate
+        all_ans_pairs: List[T_Tuple[str, str]] = []
+
+        for answers in answers_list:
+            for i_ans, answer in enumerate(answers):
+                for j_ans in range(i_ans):
+                    all_ans_pairs.append((answer, answers[j_ans]))
+
+        all_ans_is: List[str]
+        all_ans_js: List[str]
+        all_ans_is, all_ans_js = zip(*all_ans_pairs)
+        all_eqs: List[bool] = self.batch_eq(all_ans_is, all_ans_js)
+
+        all_pairs2eq: T_Dict[T_Tuple[str, str], bool] = dict(
+            zip(all_ans_pairs, all_eqs)
+        )
+        # Get the majority answers
+        for answers in answers_list:
+            maj_answers: List[str] = []
+            ans_votes: Counter[str] = Counter()
+            for i_ans, answer in enumerate(answers):
+                exist: bool = False
+                for j_ans in range(i_ans):
+                    exist_answer: str = answers[j_ans]
+                    exist = all_pairs2eq[(answer, exist_answer)]
+                    if exist:
+                        ans_votes[exist_answer] += 1
+                        break
+                if not exist:
+                    ans_votes[answer] += 1
+
+                maj_ans = self.get_maj_ans_from_votes(ans_votes)
+                maj_answers.append(maj_ans)
+            maj_answers_list.append(maj_answers)
+
+        return maj_answers_list
+
     def batch_exec(
         self,
         func: Callable,
-        args_list: Iterable[T_Tuple[Any, ...]],
-        n_procs: int = 2,
-        use_tqdm: bool = True,
+        args_list: List[T_Tuple[Any, ...]],
         desc: str = "Processing",
         def_val: Any = None,
     ) -> List[Any]:
         """Execute a function in batch using multiprocessing."""
         n_samples: int = len(args_list)
-        with ProcessPool(max_workers=min(n_procs, n_samples), max_tasks=1024) as pool:
+        with ProcessPool(
+            max_workers=min(self.n_procs, n_samples), max_tasks=1024
+        ) as pool:
             iterator: ProcessMapFuture = pool.map(
                 func, *zip(*args_list), timeout=self.timeout
             ).result()
 
-            pbar: tqdm = tqdm(total=n_samples, desc=desc) if use_tqdm else None
+            pbar: tqdm = tqdm(total=n_samples, desc=desc) if self.use_tqdm else None
             results: List[Any] = []
             while True:
                 try:
@@ -1445,7 +1490,6 @@ class EvaluatorMathBatch(EvaluatorMath, EvaluatorBatchBase):
     ----------
     strict_extract: bool, default: True
         Whether to extract answers strictly. If `False`, speculate the answer from the last number if needed.
-    timeout : int, default: DEF_TIMEOUT:=5
     include_percentage : bool, default: True
         Whether to include percentage comparisons.
     rel_tol : float, default: DEF_REL_TOL
@@ -1456,6 +1500,12 @@ class EvaluatorMathBatch(EvaluatorMath, EvaluatorBatchBase):
         The absolute tolerance for percentage comparisons.
     ascii_only : bool, default: True
         Only allowing ASCII characters
+    timeout : int, default: DEF_TIMEOUT:=5
+        The timeout for each evaluation.
+    n_procs: int, default: 2
+        The number of processes to use for multiprocessing.
+    use_tqdm: bool, default: True
+        Whether to use tqdm for progress bar.
     """
 
     def __init__(
@@ -1467,6 +1517,8 @@ class EvaluatorMathBatch(EvaluatorMath, EvaluatorBatchBase):
         percent_rel_tol: float = DEF_PERCENT_REL_TOL,
         ascii_only: bool = True,
         timeout: int = DEF_TIMEOUT,
+        n_procs: int = 2,
+        use_tqdm: bool = True,
     ):
 
         EvaluatorMath.__init__(
@@ -1477,5 +1529,7 @@ class EvaluatorMathBatch(EvaluatorMath, EvaluatorBatchBase):
             percent_rel_tol=percent_rel_tol,
             ascii_only=ascii_only,
         )
-        EvaluatorBatchBase.__init__(self, timeout=timeout)
+        EvaluatorBatchBase.__init__(
+            self, timeout=timeout, n_procs=n_procs, use_tqdm=use_tqdm
+        )
         self.strict_extract = strict_extract
