@@ -221,7 +221,9 @@ class EvaluatorBase:
                     break
             else:
                 ans_votes[answer] += 1
-            maj_ans: str = ans_votes.most_common(1)[0][0]
+            maj_ans = ans_votes.most_common(1)[0][0]
+            if maj_ans == "" and len(ans_votes) > 1:
+                maj_ans = ans_votes.most_common(2)[1][0]
             maj_answers.append(maj_ans)
 
         return maj_answers
@@ -506,14 +508,14 @@ DEF_ABS_TOL = 1e-8  # Following OlympiadBench
 DEF_PERCENT_REL_TOL = 1e-3
 
 
-def has_non_ascii(s) -> bool:
+def has_non_ascii(s: str) -> bool:
     for char in s:
         if ord(char) > 127:
             return True
     return False
 
 
-def is_querying4set(query) -> bool:
+def is_querying4set(query: str) -> bool:
     return "ind the" in query or ("all" in query and "separate" in query)
 
 

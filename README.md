@@ -241,10 +241,10 @@ test_eq(math_evaluator.eq("\\frac{2003}{2}", "1001"), False)
 #### Normalized Majority Voting
 
 ``` python
-math_evaluator.get_maj_answers(["1", "2", "3", "3", "3"])
+math_evaluator.get_maj_answers(["", "", "1", "2", "2", "3", "3", "3"])
 ```
 
-    ['1', '1', '1', '3', '3']
+    ['', '', '1', '1', '2', '2', '2', '3']
 
 ### Parsing LaTeX
 
