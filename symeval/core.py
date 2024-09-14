@@ -48,7 +48,7 @@ STRIP_STRS: List[str] = [
     "\\]",
 ]
 NO_TRAILING_STRS: List[str] = ["(", "[", "{", "\\"] + STRIP_STRS
-NO_PRECEDING_PUNCS: List[str] = ["!", ")", "]", "}", "\\\\"] + STRIP_STRS
+NO_PRECEDING_PUNCS: List[str] = ["!", ")", "]", "}", "\\\\", "boxed"] + STRIP_STRS
 # Answer prefixes
 PRM800K_ANS_PRRFIX = "# Answer"
 GSM8K_ANS_PREFIX = "####"
