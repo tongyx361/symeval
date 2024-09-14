@@ -1,4 +1,4 @@
-import regex
+import re as regex
 import warnings
 from datetime import datetime
 from math import isclose
@@ -12,6 +12,7 @@ from typing import (
     Tuple as T_Tuple,
     Match,
     Set,
+    Counter as T_Counter
 )
 from pebble import ProcessPool
 from collections import Counter
@@ -206,13 +207,13 @@ class EvaluatorBase:
         """Get the majority answers."""
         maj_answers: List[str] = []
 
-        ans_votes: Counter[str] = Counter()
+        ans_votes: T_Counter[str] = Counter()
         # Normalize all the answers
         for answer in answers:
             for exist_ans in ans_votes:
                 correct: bool
                 try:
-                    correct = self.eq(exist_ans, answer)
+                    correct = self.eq(answer, exist_ans)
                 except Exception:
                     correct = False
                 if correct:
@@ -225,7 +226,7 @@ class EvaluatorBase:
 
         return maj_answers
 
-    def get_maj_ans_from_votes(self, ans_votes: Counter[str]) -> str:
+    def get_maj_ans_from_votes(self, ans_votes: T_Counter[str]) -> str:
         maj_ans = ans_votes.most_common(1)[0][0]
         if maj_ans == "" and len(ans_votes) > 1:
             maj_ans = ans_votes.most_common(2)[1][0]
@@ -309,7 +310,9 @@ class EvaluatorBatchBase(EvaluatorBase):
             for ref, pred in zip(ref_answers, pred_answers)
         ]
 
-    def batch_get_maj_answers(self, answers_list: List[List[str]]) -> List[List[str]]:
+    def batch_get_maj_answers(
+        self, answers_list: List[List[str]], accurate: bool = True
+    ) -> List[List[str]]:
         """Get the majority answers for a batch of answers."""
         maj_answers_list: List[List[str]] = []
         # Gather all pairs to evaluate
@@ -323,7 +326,11 @@ class EvaluatorBatchBase(EvaluatorBase):
         all_ans_is: List[str]
         all_ans_js: List[str]
         all_ans_is, all_ans_js = zip(*all_ans_pairs)
-        all_eqs: List[bool] = self.batch_eq(all_ans_is, all_ans_js)
+        all_eqs: List[bool] = (
+            self.batch_eq(all_ans_is, all_ans_js)
+            if accurate
+            else [ans_i == ans_j for ans_i, ans_j in all_ans_pairs]
+        )
 
         all_pairs2eq: T_Dict[T_Tuple[str, str], bool] = dict(
             zip(all_ans_pairs, all_eqs)
@@ -331,7 +338,7 @@ class EvaluatorBatchBase(EvaluatorBase):
         # Get the majority answers
         for answers in answers_list:
             maj_answers: List[str] = []
-            ans_votes: Counter[str] = Counter()
+            ans_votes: T_Counter[str] = Counter()
             for i_ans, answer in enumerate(answers):
                 exist: bool = False
                 for j_ans in range(i_ans):
