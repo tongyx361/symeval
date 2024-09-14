@@ -211,7 +211,12 @@ class EvaluatorBase:
         # Normalize all the answers
         for answer in answers:
             for exist_ans in ans_votes:
-                if self.eq(exist_ans, answer):
+                correct: bool
+                try:
+                    correct = self.eq(exist_ans, answer)
+                except Exception:
+                    correct = False
+                if correct:
                     ans_votes[exist_ans] += 1
                     break
             else:
