@@ -9,6 +9,25 @@
     The autoreload extension is already loaded. To reload it, use:
       %reload_ext autoreload
 
+    [autoreload of symeval.core failed: Traceback (most recent call last):
+      File "/ssddata/tongyx/miniconda3/envs/dart-math/lib/python3.11/site-packages/IPython/extensions/autoreload.py", line 276, in check
+        superreload(m, reload, self.old_objects)
+      File "/ssddata/tongyx/miniconda3/envs/dart-math/lib/python3.11/site-packages/IPython/extensions/autoreload.py", line 475, in superreload
+        module = reload(module)
+                 ^^^^^^^^^^^^^^
+      File "/ssddata/tongyx/miniconda3/envs/dart-math/lib/python3.11/importlib/__init__.py", line 169, in reload
+        _bootstrap._exec(spec, module)
+      File "<frozen importlib._bootstrap>", line 621, in _exec
+      File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+      File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+      File "/ssddata/tongyx/projects/symeval/symeval/core.py", line 228, in <module>
+        class EvaluatorBatchBase(EvaluatorBase):
+      File "/ssddata/tongyx/projects/symeval/symeval/core.py", line 250, in EvaluatorBatchBase
+        ) -> Tuple[List[str], List[bool]]:
+             ~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+    TypeError: type 'Tuple' is not subscriptable
+    ]
+
 ## Installation
 
 For common users/developers, please just run the following command the

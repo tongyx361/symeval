@@ -1,27 +1,24 @@
-import re
+import regex
 import warnings
 from datetime import datetime
 from math import isclose
-from typing import Any, Callable, Optional, Union as T_Union, List, Dict, Tuple, Match
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    Union as T_Union,
+    List,
+    Dict as T_Dict,
+    Tuple as T_Tuple,
+    Match,
+    Set,
+    Iterable,
+)
 from pebble import ProcessPool
 from collections import Counter
 
 # Useful for `eval` despite not appearing in the code
-from sympy import (
-    Complement,
-    Expr,
-    E,
-    FiniteSet,
-    I,
-    Intersection,
-    Interval,
-    Matrix,
-    N,
-    Union,
-    pi,
-    simplify,
-    sqrt,
-)
+from sympy import *
 from sympy.parsing.latex import parse_latex
 from sympy.parsing.latex.errors import LaTeXParsingError
 from sympy.parsing.sympy_parser import parse_expr
@@ -122,13 +119,13 @@ class EvaluatorBase:
             return ans
         elif not self.strict_extract:
             # Speculate with the last latex formula
-            matches: List[str] = re.findall(
-                r"(?:\$|\\\(|\\\[)([^\$]+)(?:\$|\\\(|\\\[)", resp_str, re.DOTALL
+            matches: List[str] = regex.findall(
+                r"(?:\$|\\\(|\\\[)([^\$]+)(?:\$|\\\(|\\\[)", resp_str, regex.DOTALL
             )
             if len(matches) > 0:
                 return matches[-1]
             # Speculate with the last number
-            matches = re.findall(r"-?\d*\.?\d+", resp_str.replace(",", ""))
+            matches = regex.findall(r"-?\d*\.?\d+", resp_str.replace(",", ""))
             if len(matches) > 0:
                 return matches[-1]
         return ""  # Empty str if no answer is found
@@ -151,13 +148,13 @@ class EvaluatorBase:
 
             # should be answer only
             if "is the ans" in resp:
-                resp = re.split(r"(,|\.|\!\|?)", resp.split("is the ans")[-2].strip())[
-                    -1
-                ].strip()
+                resp = regex.split(
+                    r"(,|\.|\!\|?)", resp.split("is the ans")[-2].strip()
+                )[-1].strip()
             elif "is our ans" in resp:
-                resp = re.split(r"(,|\.|\!\|?)", resp.split("is our ans")[-2].strip())[
-                    -1
-                ].strip()
+                resp = regex.split(
+                    r"(,|\.|\!\|?)", resp.split("is our ans")[-2].strip()
+                )[-1].strip()
             elif "answer is" in resp:
                 resp = resp.split("answer is")[-1].strip()
             elif "answer:" in resp:
@@ -250,7 +247,7 @@ class EvaluatorBatchBase(EvaluatorBase):
         resps: List[str],
         n_procs: int = 2,
         use_tqdm: bool = True,
-    ) -> Tuple[List[str], List[bool]]:
+    ) -> T_Tuple[List[str], List[bool]]:
         """Evaluate a batch of `resps` against `ref_answers`."""
         pred_answers: List[str] = self.batch_extract_ans(resps, n_procs, use_tqdm)
         corrects: List[bool] = self.batch_eq(
@@ -266,9 +263,9 @@ class EvaluatorBatchBase(EvaluatorBase):
     ) -> List[str]:
         """Extract answers from a batch of responses."""
         answers: List[str] = self.batch_exec(
-            self.extract_ans, [(resp,) for resp in resps], n_procs, use_tqdm
+            self.extract_ans, [(resp,) for resp in resps], n_procs, use_tqdm, def_val=""
         )
-        return [ans if ans is not None else "" for ans in answers]
+        return answers
 
     def batch_eq(
         self,
@@ -278,22 +275,36 @@ class EvaluatorBatchBase(EvaluatorBase):
         use_tqdm: bool = True,
     ) -> List[bool]:
         """Evaluate a batch of `pred_answers` against `ref_answers`."""
+        uniq_ref_pref_ans_pairs: Set[T_Tuple[str, str]] = set(
+            zip(ref_answers, pred_answers)
+        )
+
         corrects: List[bool] = self.batch_exec(
             self.eq,
-            list(zip(ref_answers, pred_answers)),
+            uniq_ref_pref_ans_pairs,
             n_procs,
             use_tqdm,
             desc="Evaluating",
+            def_val=False,
         )
-        return [correct if correct is not None else False for correct in corrects]
+
+        uniq_ref_pref_ans_pair2correct: T_Dict[T_Tuple[str, str], bool] = dict(
+            zip(uniq_ref_pref_ans_pairs, corrects)
+        )
+
+        return [
+            uniq_ref_pref_ans_pair2correct[(ref, pred)]
+            for ref, pred in zip(ref_answers, pred_answers)
+        ]
 
     def batch_exec(
         self,
         func: Callable,
-        args_list: List[Tuple[Any, ...]],
+        args_list: Iterable[T_Tuple[Any, ...]],
         n_procs: int = 2,
         use_tqdm: bool = True,
         desc: str = "Processing",
+        def_val: Any = None,
     ) -> List[Any]:
         """Execute a function in batch using multiprocessing."""
         n_samples: int = len(args_list)
@@ -311,7 +322,7 @@ class EvaluatorBatchBase(EvaluatorBase):
                 except StopIteration:
                     break
                 except Exception:
-                    results.append(None)  # or any default value
+                    results.append(def_val)
                 if pbar:
                     pbar.update(1)
             if pbar:
@@ -402,7 +413,7 @@ def latex2sympy_interval(
     return interval
 
 
-PAREN_MAP: Dict[str, str] = {
+PAREN_MAP: T_Dict[str, str] = {
     r"\(": r"\)",
     r"\[": r"\]",
     r"\{": r"\}",
@@ -539,15 +550,15 @@ def parse(
 def norm_deg(s: str) -> str:
     """Normalize expressions including degrees, except independent <num>\\circ"""
     s = s.replace("rad", "")
-    s = re.sub(r"^(\d+) ?\^?\\?circ$", r"\1", s)
-    s = re.sub(r"(\d+) ?\^?\\?circ", r"{\1*\\frac{\\pi}{180}}", s)
+    s = regex.sub(r"^(\d+) ?\^?\\?circ$", r"\1", s)
+    s = regex.sub(r"(\d+) ?\^?\\?circ", r"{\1*\\frac{\\pi}{180}}", s)
 
     return s
 
 
 def is_set(s: str) -> bool:
     return (
-        re.search(r"[^a-z]or(x|[^a-z])", s) is not None
+        regex.search(r"[^a-z]or(x|[^a-z])", s) is not None
         or (s.startswith("{") and s.endswith("}"))
         or (s.startswith("\\{") and s.endswith("\\}"))
     )
@@ -557,8 +568,8 @@ def fix_sqrt(
     s: str,
 ) -> str:
     """Fixes the formatting of square root expressions in a given string."""
-    _s = re.sub(r"\\?sqrt[\(\{\[](\w+)[\)\}\]]", r"\\sqrt{\1}", s)
-    _s = re.sub(r"\\?sqrt\s*(\d+)", r"\\sqrt{\1}", _s)
+    _s = regex.sub(r"\\?sqrt[\(\{\[](\w+)[\)\}\]]", r"\\sqrt{\1}", s)
+    _s = regex.sub(r"\\?sqrt\s*(\d+)", r"\\sqrt{\1}", _s)
     return _s
 
 
@@ -602,8 +613,8 @@ def fix_a_slash_b(s: str) -> str:
     # The numerator and denominator can be numbers (\d+) or expressions containing sqrt (sqrt\(.*?\)).
     fraction_pattern = r"(\b\d+|sqrt\(.*?\))\/(\d+|sqrt\(.*?\)\b)"
 
-    # Use `re.sub` to replace the matched fractions with properly formatted fractions.
-    result = re.sub(
+    # Use `regex.sub` to replace the matched fractions with properly formatted fractions.
+    result = regex.sub(
         fraction_pattern, lambda m: f"\\frac{{{m.group(1)}}}{{{m.group(2)}}}", s
     )
 
@@ -818,7 +829,7 @@ class EvaluatorMath(EvaluatorBase):
 
     def eq(
         self,
-        ref_ans: T_Union[str, Tuple[str, float]],  # The reference answer value.
+        ref_ans: T_Union[str, T_Tuple[str, float]],  # The reference answer value.
         pred: str,  # The predicted answer value.
         compare_sets: bool = False,  # Whether to compare sets of values.
     ) -> bool:  # True if the values are mathematically equal, False otherwise.
@@ -967,7 +978,7 @@ class EvaluatorMath(EvaluatorBase):
             return True
 
         n_checks = 5
-        expr_parse_errs: Dict[str, List[Exception]] = {}
+        expr_parse_errs: T_Dict[str, List[Exception]] = {}
         if len(pred_parse_errs) == n_checks:
             expr_parse_errs["pred"] = pred_parse_errs
         if len(ref_parse_errs) == n_checks:
@@ -1042,11 +1053,11 @@ class EvaluatorMath(EvaluatorBase):
         latex_mat_str = latex_mat_str.replace(" ", "")
 
         pattern = r"(?:\[|\()?\\begin{[a-zA-Z]?(?:matrix|array)}(?:\[lcr\])*?(.*)\\end{[a-zA-Z]?(?:matrix|array)}(?:\]|\))?"
-        data: Optional[Match[str]] = re.search(pattern, latex_mat_str)
+        data: Optional[Match[str]] = regex.search(pattern, latex_mat_str)
         python_matrix: List[List[str]] = []
         if data is not None:
             # \+ not followed by frac or sqrt
-            rows: List[str] = re.split(r"\\+(?!frac|sqrt)", data[1])
+            rows: List[str] = regex.split(r"\\+(?!frac|sqrt)", data[1])
             for row in rows:
                 elements_list: List[str] = row.split("&")
                 python_matrix.append(elements_list)
@@ -1160,7 +1171,7 @@ class EvaluatorMath(EvaluatorBase):
                 continue
         return None
 
-    def index_first_paren_pair(self, s: str, l: str) -> Tuple[int, int]:
+    def index_first_paren_pair(self, s: str, l: str) -> T_Tuple[int, int]:
         r: str = PAREN_MAP[l]
         try:
             i_l: int = s.index(l)
@@ -1246,9 +1257,9 @@ class EvaluatorMath(EvaluatorBase):
         """
         # \2 matches \d+ without {} around, if there has been {}, there is no need to normalize
         # Existing nude power, i.e. ^<pow_d+>
-        s = re.sub(rf"\\?({'|'.join(BASIC_FN_NAMES)})\^(\d+)", r"\\\1^{\2}", s)
+        s = regex.sub(rf"\\?({'|'.join(BASIC_FN_NAMES)})\^(\d+)", r"\\\1^{\2}", s)
         # No power
-        s = re.sub(rf"\\?({'|'.join(BASIC_FN_NAMES)})(?!\^)", r"\\\1^{1}", s)
+        s = regex.sub(rf"\\?({'|'.join(BASIC_FN_NAMES)})(?!\^)", r"\\\1^{1}", s)
         return s
 
     def norm_pm(self, s: str) -> str:
@@ -1268,9 +1279,9 @@ class EvaluatorMath(EvaluatorBase):
         # The pattern is corrected to include the '$' signs and to capture the expressions correctly.
         pattern = r"([\w\.\\{}\+\-\*\^]+?)(?:\\pm|\\mp)([\w\.\\{}\+\-\*\^]+)"
 
-        if re.search(pattern, _s):
-            # Use re.sub to replace all occurrences of the pattern in the input string.
-            return re.sub(pattern, replace_pm, _s)
+        if regex.search(pattern, _s):
+            # Use regex.sub to replace all occurrences of the pattern in the input string.
+            return regex.sub(pattern, replace_pm, _s)
         else:
             return s
 
@@ -1308,14 +1319,14 @@ class EvaluatorMath(EvaluatorBase):
 
         # Normalize local expressions
         string = norm_deg(string)  # Normalize degrees
-        string = re.sub(
+        string = regex.sub(
             rf"(?<!\\)(pi\b|{'|'.join(BASIC_FN_NAMES)})", r"\\\1", string
         )  # Fix backslashes
         string = self.norm_basic_fn(string)  # Normalize basic functions
 
         # Normalize matrix and array
-        string = re.sub(r"{[a-z]?matrix}", r"{array}", string)
-        string = re.sub(r"\\begin{array}{[lcr]*}", r"\\begin{array}{}", string)
+        string = regex.sub(r"{[a-z]?matrix}", r"{array}", string)
+        string = regex.sub(r"\\begin{array}{[lcr]*}", r"\\begin{array}{}", string)
         # NOTE: the substituion str should alse obey the regex syntax, like r"\\begin{array}"
         if "\\begin{array}" not in string:
             string = string.replace("\\\\", "")
@@ -1325,12 +1336,12 @@ class EvaluatorMath(EvaluatorBase):
             string = string.replace("j", "i")
 
         # replace a.000b where b is not number or b is end, with ab, use regex
-        string = re.sub(r"(\d+)\.0+([^\d])", r"\1\2", string)
-        string = re.sub(r"(\d+)\.0+$", r"\1", string)
+        string = regex.sub(r"(\d+)\.0+([^\d])", r"\1\2", string)
+        string = regex.sub(r"(\d+)\.0+$", r"\1", string)
 
         # remove units
         for unit in UNITS:
-            string = re.sub(f"([-\d\.\*\^{{}}]+){unit}e?s?$", "\\1", string)
+            string = regex.sub(f"([-\d\.\*\^{{}}]+){unit}e?s?$", "\\1", string)
 
         # Check if empty before splitting
         # if empty, return empty string
@@ -1361,7 +1372,7 @@ class EvaluatorMath(EvaluatorBase):
             # NOTE: X/Y changed to \frac{X}{Y} in dataset, but in simple cases fix in case the model output is X/Y
             string = fix_a_slash_b(string)
 
-            string = re.sub(r"^[a-z]\\in", "", string)
+            string = regex.sub(r"^[a-z]\\in", "", string)
 
             if "," not in string:
                 string = self.remove_out_paren(string)
@@ -1375,7 +1386,7 @@ class EvaluatorMath(EvaluatorBase):
                 if len(string.split("=")) == 2:
                     first_part = string.split("=")[0].strip()
                     if (
-                        re.match(
+                        regex.match(
                             r"^([a-z]|[A-Z]{2}|\\?(alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|omicron|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega|sin|cos|sec|csc|tan|cot|sinh|cosh|sech|csch|tanh|coth|log|ln|exp))\^?{?-?('|\\prime|\d)*}?(\(-?([\d\.]+|[a-z])?\))?$",
                             first_part,
                         )
@@ -1385,13 +1396,16 @@ class EvaluatorMath(EvaluatorBase):
 
                 # to consider: get rid of equalities but not equations
                 if len(string.split("=")) == 2:
-                    if len(re.findall(r"[a-zA-Z]", string.split("=")[0].strip())) == 0:
+                    if (
+                        len(regex.findall(r"[a-zA-Z]", string.split("=")[0].strip()))
+                        == 0
+                    ):
                         string = string.split("=")[1]
             # replace \pm with +,-
-            # string = re.sub(r"(.*?)\\pm(.+?)", r"\1-\2,\1+\2", string)
+            # string = regex.sub(r"(.*?)\\pm(.+?)", r"\1-\2,\1+\2", string)
             string = self.norm_pm(string)  # might add comma ","
 
-            string = re.sub(r"^0+([1-9])", r"\1", string)
+            string = regex.sub(r"^0+([1-9])", r"\1", string)
 
             strings.append(string)
         string = ",".join(strings)
@@ -1403,12 +1417,12 @@ class EvaluatorMath(EvaluatorBase):
             string = str(STR2NUM[string])
 
         # add space
-        string = re.sub(r"\\mid([a-z])", r"\\mid \1", string)
+        string = regex.sub(r"\\mid([a-z])", r"\\mid \1", string)
         string = self.clean(string)
 
         # If there are multiple same inequality signs and no commas
         for ineq in ["<", ">"]:
-            if len(re.findall(f"{ineq}=?", string)) > 1 and not any(
+            if len(regex.findall(f"{ineq}=?", string)) > 1 and not any(
                 delim in string.lower() for delim in [",", "and", "or"]
             ):
                 string = string.replace(ineq, ",")
