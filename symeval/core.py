@@ -4,6 +4,7 @@ from datetime import datetime
 from math import isclose
 from typing import Any, Callable, Optional, Union as T_Union, List, Dict, Tuple, Match
 from pebble import ProcessPool
+from collections import Counter
 
 # Useful for `eval` despite not appearing in the code
 from sympy import (
@@ -204,6 +205,24 @@ class EvaluatorBase:
         while s != "" and s[-1] in NO_TRAILING_STRS:
             s = s[:-1].strip()
         return s
+
+    def get_maj_answers(self, answers: List[str]) -> List[str]:
+        """Get the majority answers."""
+        maj_answers: List[str] = []
+
+        ans_votes: Counter[str] = Counter()
+        # Normalize all the answers
+        for answer in answers:
+            for exist_ans in ans_votes:
+                if self.eq(exist_ans, answer):
+                    ans_votes[exist_ans] += 1
+                    break
+            else:
+                ans_votes[answer] += 1
+            maj_ans: str = ans_votes.most_common(1)[0][0]
+            maj_answers.append(maj_ans)
+
+        return maj_answers
 
 
 DEF_TIMEOUT = 5
