@@ -251,49 +251,73 @@ class EvaluatorBatchBase(EvaluatorBase):
         n_procs: int = 2,
         use_tqdm: bool = True,
     ) -> Tuple[List[str], List[bool]]:
-        """Evaluate a batch of `samples` based on comprehensive information in place."""
-
-        n_samples: int = len(ref_answers)
-        with ProcessPool(max_workers=min(n_procs, n_samples), max_tasks=1024) as pool:
-            # NOTE: multi-processing does not support modifications in place
-            iterator: ProcessMapFuture = pool.map(
-                self.extract_ans, resps, timeout=self.timeout
-            ).result()
-
-            pbar: tqdm = tqdm(total=n_samples, desc="Extracting") if use_tqdm else None
-            pred_answers: List[str] = []
-            while True:
-                try:
-                    result = next(iterator)
-                    pred_answers.append(result)
-                except StopIteration:
-                    break
-                except Exception:
-                    pred_answers.append("")
-                if pbar:
-                    pbar.update(1)
-            if pbar:
-                pbar.close()
-
-            iterator = pool.map(
-                self.eq, ref_answers, pred_answers, timeout=self.timeout
-            ).result()
-            pbar = tqdm(total=n_samples, desc="Evaluating") if use_tqdm else None
-            corrects: List[bool] = []
-            while True:
-                try:
-                    result = next(iterator)
-                    corrects.append(result)
-                except StopIteration:
-                    break
-                except Exception:
-                    corrects.append(False)
-                if pbar:
-                    pbar.update(1)
-            if pbar:
-                pbar.close()
-
+        """Evaluate a batch of `resps` against `ref_answers`."""
+        pred_answers: List[str] = self.batch_extract_ans(resps, n_procs, use_tqdm)
+        corrects: List[bool] = self.batch_eq(
+            ref_answers, pred_answers, n_procs, use_tqdm
+        )
         return pred_answers, corrects
+
+    def batch_extract_ans(
+        self,
+        resps: List[str],
+        n_procs: int = 2,
+        use_tqdm: bool = True,
+    ) -> List[str]:
+        """Extract answers from a batch of responses."""
+        answers: List[str] = self.batch_exec(
+            self.extract_ans, [(resp,) for resp in resps], n_procs, use_tqdm
+        )
+        return [ans if ans is not None else "" for ans in answers]
+
+    def batch_eq(
+        self,
+        ref_answers: List[str],
+        pred_answers: List[str],
+        n_procs: int = 2,
+        use_tqdm: bool = True,
+    ) -> List[bool]:
+        """Evaluate a batch of `pred_answers` against `ref_answers`."""
+        corrects: List[bool] = self.batch_exec(
+            self.eq,
+            list(zip(ref_answers, pred_answers)),
+            n_procs,
+            use_tqdm,
+            desc="Evaluating",
+        )
+        return [correct if correct is not None else False for correct in corrects]
+
+    def batch_exec(
+        self,
+        func: Callable,
+        args_list: List[Tuple[Any, ...]],
+        n_procs: int = 2,
+        use_tqdm: bool = True,
+        desc: str = "Processing",
+    ) -> List[Any]:
+        """Execute a function in batch using multiprocessing."""
+        n_samples: int = len(args_list)
+        with ProcessPool(max_workers=min(n_procs, n_samples), max_tasks=1024) as pool:
+            iterator: ProcessMapFuture = pool.map(
+                func, *zip(*args_list), timeout=self.timeout
+            ).result()
+
+            pbar: tqdm = tqdm(total=n_samples, desc=desc) if use_tqdm else None
+            results: List[Any] = []
+            while True:
+                try:
+                    result = next(iterator)
+                    results.append(result)
+                except StopIteration:
+                    break
+                except Exception:
+                    results.append(None)  # or any default value
+                if pbar:
+                    pbar.update(1)
+            if pbar:
+                pbar.close()
+
+        return results
 
 
 def latex2sympy_fix(s: str) -> Expr:
