@@ -40,7 +40,10 @@ To address this, we implement
 to evaluate in batch with **timeout** but still efficiently.
 
 ``` python
-answers, corrects = math_evalutor.batch_eval(ref_answers, resps)
+test_eq(
+    math_evaluator.batch_eq(ref_answers=["1/2", "1/2"], pred_answers=["0.5", "2/4"]),
+    [True] * 2,
+)
 ```
 
 Here we provide a quick start guide. For more details, please refer to

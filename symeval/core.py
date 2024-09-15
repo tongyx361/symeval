@@ -1,19 +1,21 @@
 import os
+import random
 import re as regex
 import signal
 import threading
 import warnings
 from collections import Counter
+from concurrent.futures import TimeoutError
 from datetime import datetime
 from math import isclose
-from multiprocessing import Process, Queue
-from queue import Empty
 from typing import Any, Callable
 from typing import Counter as T_Counter
 from typing import Dict as T_Dict
 from typing import List, Match, Optional, Set
 from typing import Tuple as T_Tuple
 from typing import Union as T_Union
+
+from pebble import ProcessPool
 
 # Useful for `eval` despite not appearing in the code
 from sympy import *
@@ -105,9 +107,9 @@ class EvaluatorBase:
     ):
         self.strict_extract: bool = strict_extract
 
-    def eq(self, ref: str, ans: str) -> bool:
+    def eq(self, ref_ans: str, pred: str) -> bool:
         """Check if reference answer and prediction answer are **literally** equal."""
-        return ref == ans
+        return ref_ans == pred
 
     def extract_ans(self, resp_str: str) -> str:
         """Extract answer segment from complete `resp`."""
@@ -230,7 +232,8 @@ class EvaluatorBase:
         return maj_ans
 
 
-DEF_TIMEOUT = 5
+DEF_TIMEOUT: int = 5
+DEF_N_PROC: int = 2
 
 
 class EvaluatorBatchBase(EvaluatorBase):
@@ -252,7 +255,7 @@ class EvaluatorBatchBase(EvaluatorBase):
         self,
         strict_extract: bool = True,
         timeout: int = DEF_TIMEOUT,
-        n_procs: int = 2,
+        n_procs: int = DEF_N_PROC,
         use_tqdm: bool = True,
     ):
         EvaluatorBase.__init__(self)
@@ -276,9 +279,12 @@ class EvaluatorBatchBase(EvaluatorBase):
         resps: List[str],
     ) -> List[str]:
         """Extract answers from a batch of responses."""
-        answers: List[str] = self.batch_exec(
+        answers: List[str] = batch_exec(
             self.extract_ans,
             [{"resp_str": resp} for resp in resps],
+            self.n_procs,
+            self.timeout,
+            self.use_tqdm,
             desc="Extracting",
             def_val="",
         )
@@ -294,9 +300,15 @@ class EvaluatorBatchBase(EvaluatorBase):
             zip(ref_answers, pred_answers)
         )
 
-        corrects: List[bool] = self.batch_exec(
+        corrects: List[bool] = batch_exec(
             self.eq,
-            [{"ref": ref, "ans": pred} for ref, pred in uniq_ref_pref_ans_pairs],
+            [
+                {"ref_ans": ref_ans, "pred": pred}
+                for ref_ans, pred in uniq_ref_pref_ans_pairs
+            ],
+            self.n_procs,
+            self.timeout,
+            self.use_tqdm,
             desc="Judging",
             def_val=False,
         )
@@ -356,117 +368,112 @@ class EvaluatorBatchBase(EvaluatorBase):
 
         return maj_answers_list
 
-    def batch_exec(
-        self,
-        func: Callable[..., Any],
-        kwargs_list: List[T_Dict[str, Any]],
-        desc: str = "Processing",
-        def_val: Any = None,
-    ) -> List[Any]:
-        """Execute a function in batch using multiprocessing with efficient per-task timeout."""
-        n_samples: int = len(kwargs_list)
-        n_procs: int = min(self.n_procs, n_samples)
+
+def batch_exec(
+    func: Callable[..., Any],
+    kwargs_list: List[T_Dict[str, Any]],
+    n_procs: int = DEF_N_PROC,
+    timeout: int = DEF_TIMEOUT,
+    use_tqdm: bool = True,
+    desc: str = "Processing",
+    def_val: Any = None,
+) -> List[Any]:
+    """Execute a function in batch using multiprocessing with efficient per-task timeout."""
+    n_samples: int = len(kwargs_list)
+    n_procs = min(n_procs, n_samples)
+
+    # Shuffle the tasks
+    shuffled_tasks = list(enumerate(kwargs_list))
+    random.shuffle(shuffled_tasks)
+
+    # Split tasks into chunks for each process
+    chunk_size = -(-n_samples // n_procs)  # Ceiling division
+    task_chunks = [
+        shuffled_tasks[i : i + chunk_size] for i in range(0, n_samples, chunk_size)
+    ]
+
+    results: List[Any] = [def_val] * n_samples
+    pbar: Optional[tqdm] = tqdm(total=n_samples, desc=desc) if use_tqdm else None
+
+    with ProcessPool(max_workers=n_procs) as pool:
+        future = pool.map(
+            process_tasks,
+            task_chunks,
+            [func] * len(task_chunks),
+            [timeout] * len(task_chunks),
+            [def_val] * len(task_chunks),
+        )
+        iterator = future.result()
+
+        for chunk_results in iterator:
+            for idx, result in chunk_results:
+                results[idx] = result
+                if pbar:
+                    pbar.update(1)
+
+    if pbar:
+        pbar.close()
+
+    return results
+
+
+def process_tasks(
+    task_list: List[T_Tuple[int, T_Dict[str, Any]]],
+    func: Callable[..., Any],
+    timeout: int,
+    def_val: Any,
+) -> List[T_Tuple[int, Any]]:
+    pid: int = os.getpid()
+    print(f"Process {pid} is processing {len(task_list)} tasks")
+    results = []
+    for idx, kwargs in task_list:
+        result: Any
+        try:
+            result = run_with_timeout(func, kwargs, timeout)
+        except TimeoutError:
+            result = def_val
+        except Exception:
+            result = def_val
+        results.append((idx, result))
+    print(f"Process {pid} finished processing {len(task_list)} tasks")
+    return results
+
+
+def run_with_timeout(
+    func: Callable[..., Any], kwargs: T_Dict[str, Any], timeout: int
+) -> Any:
+    if os.name == "posix":  # For Unix-based systems
 
         def timeout_handler(signum: int, frame: Any) -> None:
             raise TimeoutError()
 
-        def run_with_timeout(
-            func: Callable[..., Any], kwargs: T_Dict[str, Any], timeout: int
-        ) -> Any:
-            if os.name == "posix":  # For Unix-based systems
-                signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(timeout)
-                try:
-                    result: Any = func(**kwargs)
-                    signal.alarm(0)  # Cancel the alarm
-                    return result
-                except TimeoutError:
-                    return def_val
-                except Exception:
-                    return def_val
-            else:  # For Windows and other systems
-                results: List[Any] = [def_val]
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(timeout)
+        try:
+            result: Any = func(**kwargs)
+            signal.alarm(0)  # Cancel the alarm
+            return result
+        except TimeoutError:
+            raise
+        except Exception:
+            raise
+    else:  # For Windows and other systems
+        results: List[Any] = [None]
 
-                def target() -> None:
-                    try:
-                        results[0] = func(**kwargs)
-                    except Exception:
-                        pass
-
-                thread: threading.Thread = threading.Thread(target=target)
-                thread.start()
-                thread.join(timeout)
-                return results[0]
-
-        def worker(task_queue: Queue, result_queue: Queue) -> None:
-            print(f"Worker process {os.getpid()} started")
-            task_count = 0
-            while True:
-                try:
-                    idx, kwargs = task_queue.get(timeout=1)  # Wait for 1 second
-                    task_count += 1
-                    # print(f"Worker {os.getpid()} processing task {idx}")
-                    result: Any
-                    try:
-                        result = run_with_timeout(func, kwargs, self.timeout)
-                    except TimeoutError:
-                        result = def_val
-                    result_queue.put((idx, result))
-                except Empty:
-                    print(
-                        f"Worker {os.getpid()} found empty queue after {task_count} tasks"
-                    )
-                    break
-                except Exception as e:
-                    print(f"Worker {os.getpid()} encountered error: {str(e)}")
-                    break
-            print(
-                f"Worker process {os.getpid()} finished after processing {task_count} tasks"
-            )
-
-        task_queue: Queue = Queue()
-        result_queue: Queue = Queue()
-
-        print(f"Adding {len(kwargs_list)} tasks to the queue")
-        for idx, kwargs in enumerate(kwargs_list):
-            task_queue.put((idx, kwargs))
-        print("Finished adding tasks to the queue")
-
-        processes: List[Process] = [
-            Process(target=worker, args=(task_queue, result_queue))
-            for _ in range(n_procs)
-        ]
-
-        for p in processes:
-            p.start()
-
-        results: List[Any] = [def_val] * n_samples
-        pbar: Optional[tqdm] = (
-            tqdm(total=n_samples, desc=desc) if self.use_tqdm else None
-        )
-
-        completed: int = 0
-
-        while completed < n_samples:
+        def target() -> None:
             try:
-                idx, result = result_queue.get(timeout=0.1)
-                results[idx] = result
-                completed += 1
-                if pbar:
-                    pbar.update(1)
-            except Empty:
-                if all(not p.is_alive() for p in processes):
-                    break
-                continue
+                results[0] = func(**kwargs)
+            except Exception as e:
+                results[0] = e
 
-        for p in processes:
-            p.terminate()
-            p.join()
-
-        if pbar:
-            pbar.close()
-
-        return results
+        thread: threading.Thread = threading.Thread(target=target)
+        thread.start()
+        thread.join(timeout)
+        if thread.is_alive():
+            raise TimeoutError()
+        if isinstance(results[0], Exception):
+            raise results[0]
+        return results[0]
 
 
 def latex2sympy_fix(s: str) -> Expr:
@@ -1318,14 +1325,14 @@ class EvaluatorMath(EvaluatorBase):
         len_paren: int = len(l)
 
         depth = 0
-        i_r = -1
+        i_r: int = -1
         for i_c in range(i_l, len(s)):
             if s[i_c : i_c + len_paren] == l:
                 depth -= 1
             elif s[i_c : i_c + len_paren] == r:
                 depth += 1
             if depth == 0:
-                i_r: int = i_c
+                i_r = i_c
                 break
 
         return i_l, i_r
@@ -1603,7 +1610,7 @@ class EvaluatorMathBatch(EvaluatorMath, EvaluatorBatchBase):
         percent_rel_tol: float = DEF_PERCENT_REL_TOL,
         ascii_only: bool = True,
         timeout: int = DEF_TIMEOUT,
-        n_procs: int = 2,
+        n_procs: int = DEF_N_PROC,
         use_tqdm: bool = True,
     ):
 
@@ -1618,5 +1625,4 @@ class EvaluatorMathBatch(EvaluatorMath, EvaluatorBatchBase):
         EvaluatorBatchBase.__init__(
             self, timeout=timeout, n_procs=n_procs, use_tqdm=use_tqdm
         )
-        self.strict_extract = strict_extract
         self.strict_extract = strict_extract
