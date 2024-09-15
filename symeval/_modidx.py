@@ -65,6 +65,6 @@ d = { 'settings': { 'branch': 'main',
                               'symeval.core.norm_str2bool': ('core.html#norm_str2bool', 'symeval/core.py'),
                               'symeval.core.norm_str2weekday': ('core.html#norm_str2weekday', 'symeval/core.py'),
                               'symeval.core.parse': ('core.html#parse', 'symeval/core.py'),
-                              'symeval.core.process_tasks': ('core.html#process_tasks', 'symeval/core.py'),
                               'symeval.core.rm_latex_env': ('core.html#rm_latex_env', 'symeval/core.py'),
-                              'symeval.core.run_with_timeout': ('core.html#run_with_timeout', 'symeval/core.py')}}}
+                              'symeval.core.run_with_timeout': ('core.html#run_with_timeout', 'symeval/core.py'),
+                              'symeval.core.task_wrapper': ('core.html#task_wrapper', 'symeval/core.py')}}}
