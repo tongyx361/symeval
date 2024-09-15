@@ -1,21 +1,19 @@
+import os
 import re as regex
+import signal
+import threading
 import warnings
+from collections import Counter
 from datetime import datetime
 from math import isclose
-from typing import (
-    Any,
-    Callable,
-    Optional,
-    Union as T_Union,
-    List,
-    Dict as T_Dict,
-    Tuple as T_Tuple,
-    Match,
-    Set,
-    Counter as T_Counter
-)
-from pebble import ProcessPool
-from collections import Counter
+from multiprocessing import Process, Queue
+from queue import Empty
+from typing import Any, Callable
+from typing import Counter as T_Counter
+from typing import Dict as T_Dict
+from typing import List, Match, Optional, Set
+from typing import Tuple as T_Tuple
+from typing import Union as T_Union
 
 # Useful for `eval` despite not appearing in the code
 from sympy import *
@@ -24,7 +22,6 @@ from sympy.parsing.latex.errors import LaTeXParsingError
 from sympy.parsing.sympy_parser import parse_expr
 from sympy.utilities.exceptions import SymPyDeprecationWarning
 from tqdm import tqdm
-from pebble import ProcessMapFuture
 
 warnings.filterwarnings("ignore", category=SymPyDeprecationWarning)
 
@@ -280,7 +277,10 @@ class EvaluatorBatchBase(EvaluatorBase):
     ) -> List[str]:
         """Extract answers from a batch of responses."""
         answers: List[str] = self.batch_exec(
-            self.extract_ans, [(resp,) for resp in resps], def_val=""
+            self.extract_ans,
+            [{"resp_str": resp} for resp in resps],
+            desc="Extracting",
+            def_val="",
         )
         return answers
 
@@ -296,8 +296,8 @@ class EvaluatorBatchBase(EvaluatorBase):
 
         corrects: List[bool] = self.batch_exec(
             self.eq,
-            uniq_ref_pref_ans_pairs,
-            desc="Evaluating",
+            [{"ref": ref, "ans": pred} for ref, pred in uniq_ref_pref_ans_pairs],
+            desc="Judging",
             def_val=False,
         )
 
@@ -358,34 +358,113 @@ class EvaluatorBatchBase(EvaluatorBase):
 
     def batch_exec(
         self,
-        func: Callable,
-        args_list: List[T_Tuple[Any, ...]],
+        func: Callable[..., Any],
+        kwargs_list: List[T_Dict[str, Any]],
         desc: str = "Processing",
         def_val: Any = None,
     ) -> List[Any]:
-        """Execute a function in batch using multiprocessing."""
-        n_samples: int = len(args_list)
-        with ProcessPool(
-            max_workers=min(self.n_procs, n_samples), max_tasks=1024
-        ) as pool:
-            iterator: ProcessMapFuture = pool.map(
-                func, *zip(*args_list), timeout=self.timeout
-            ).result()
+        """Execute a function in batch using multiprocessing with efficient per-task timeout."""
+        n_samples: int = len(kwargs_list)
+        n_procs: int = min(self.n_procs, n_samples)
 
-            pbar: tqdm = tqdm(total=n_samples, desc=desc) if self.use_tqdm else None
-            results: List[Any] = []
+        def timeout_handler(signum: int, frame: Any) -> None:
+            raise TimeoutError()
+
+        def run_with_timeout(
+            func: Callable[..., Any], kwargs: T_Dict[str, Any], timeout: int
+        ) -> Any:
+            if os.name == "posix":  # For Unix-based systems
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(timeout)
+                try:
+                    result: Any = func(**kwargs)
+                    signal.alarm(0)  # Cancel the alarm
+                    return result
+                except TimeoutError:
+                    return def_val
+                except Exception:
+                    return def_val
+            else:  # For Windows and other systems
+                results: List[Any] = [def_val]
+
+                def target() -> None:
+                    try:
+                        results[0] = func(**kwargs)
+                    except Exception:
+                        pass
+
+                thread: threading.Thread = threading.Thread(target=target)
+                thread.start()
+                thread.join(timeout)
+                return results[0]
+
+        def worker(task_queue: Queue, result_queue: Queue) -> None:
+            print(f"Worker process {os.getpid()} started")
+            task_count = 0
             while True:
                 try:
-                    result = next(iterator)
-                    results.append(result)
-                except StopIteration:
+                    idx, kwargs = task_queue.get(timeout=1)  # Wait for 1 second
+                    task_count += 1
+                    # print(f"Worker {os.getpid()} processing task {idx}")
+                    result: Any
+                    try:
+                        result = run_with_timeout(func, kwargs, self.timeout)
+                    except TimeoutError:
+                        result = def_val
+                    result_queue.put((idx, result))
+                except Empty:
+                    print(
+                        f"Worker {os.getpid()} found empty queue after {task_count} tasks"
+                    )
                     break
-                except Exception:
-                    results.append(def_val)
+                except Exception as e:
+                    print(f"Worker {os.getpid()} encountered error: {str(e)}")
+                    break
+            print(
+                f"Worker process {os.getpid()} finished after processing {task_count} tasks"
+            )
+
+        task_queue: Queue = Queue()
+        result_queue: Queue = Queue()
+
+        print(f"Adding {len(kwargs_list)} tasks to the queue")
+        for idx, kwargs in enumerate(kwargs_list):
+            task_queue.put((idx, kwargs))
+        print("Finished adding tasks to the queue")
+
+        processes: List[Process] = [
+            Process(target=worker, args=(task_queue, result_queue))
+            for _ in range(n_procs)
+        ]
+
+        for p in processes:
+            p.start()
+
+        results: List[Any] = [def_val] * n_samples
+        pbar: Optional[tqdm] = (
+            tqdm(total=n_samples, desc=desc) if self.use_tqdm else None
+        )
+
+        completed: int = 0
+
+        while completed < n_samples:
+            try:
+                idx, result = result_queue.get(timeout=0.1)
+                results[idx] = result
+                completed += 1
                 if pbar:
                     pbar.update(1)
-            if pbar:
-                pbar.close()
+            except Empty:
+                if all(not p.is_alive() for p in processes):
+                    break
+                continue
+
+        for p in processes:
+            p.terminate()
+            p.join()
+
+        if pbar:
+            pbar.close()
 
         return results
 
@@ -1539,4 +1618,5 @@ class EvaluatorMathBatch(EvaluatorMath, EvaluatorBatchBase):
         EvaluatorBatchBase.__init__(
             self, timeout=timeout, n_procs=n_procs, use_tqdm=use_tqdm
         )
+        self.strict_extract = strict_extract
         self.strict_extract = strict_extract
