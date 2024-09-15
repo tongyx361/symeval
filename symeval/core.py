@@ -15,7 +15,7 @@ from typing import List, Match, Optional, Set
 from typing import Tuple as T_Tuple
 from typing import Union as T_Union
 
-from pebble import ProcessPool
+from pebble import ProcessPool, ThreadPool
 
 # Useful for `eval` despite not appearing in the code
 from sympy import *
@@ -425,23 +425,61 @@ def process_tasks(
 ) -> List[T_Tuple[int, Any]]:
     pid: int = os.getpid()
     print(f"Process {pid} is processing {len(task_list)} tasks")
-    results = []
-    for idx, kwargs in task_list:
-        result: Any
+    results: List[T_Tuple[int, Any]] = []
+
+    def task_wrapper(idx: int, kwargs: T_Dict[str, Any]) -> T_Tuple[int, Any]:
         try:
-            result = run_with_timeout(func, kwargs, timeout)
-        except TimeoutError:
-            result = def_val
+            result = func(**kwargs)
+            return idx, result
         except Exception:
-            result = def_val
-        results.append((idx, result))
+            return idx, def_val
+
+    with ThreadPool() as pool:
+        futures = [
+            pool.schedule(task_wrapper, args=(idx, kwargs)) for idx, kwargs in task_list
+        ]
+
+        for future in futures:
+            try:
+                idx, result = future.result(timeout=timeout)
+            except TimeoutError:
+                idx = task_list[len(results)][0]
+                result = def_val
+            except Exception:
+                idx = task_list[len(results)][0]
+                result = def_val
+            results.append((idx, result))
+
     print(f"Process {pid} finished processing {len(task_list)} tasks")
     return results
+
+
+# def process_tasks(
+#     task_list: List[T_Tuple[int, T_Dict[str, Any]]],
+#     func: Callable[..., Any],
+#     timeout: int,
+#     def_val: Any,
+# ) -> List[T_Tuple[int, Any]]:
+#     pid: int = os.getpid()
+#     print(f"Process {pid} is processing {len(task_list)} tasks")
+#     results = []
+#     for idx, kwargs in task_list:
+#         result: Any
+#         try:
+#             result = run_with_timeout(func, kwargs, timeout)
+#         except TimeoutError:
+#             result = def_val
+#         except Exception:
+#             result = def_val
+#         results.append((idx, result))
+#     print(f"Process {pid} finished processing {len(task_list)} tasks")
+#     return results
 
 
 def run_with_timeout(
     func: Callable[..., Any], kwargs: T_Dict[str, Any], timeout: int
 ) -> Any:
+    """This seems slow."""
     if os.name == "posix":  # For Unix-based systems
 
         def timeout_handler(signum: int, frame: Any) -> None:
