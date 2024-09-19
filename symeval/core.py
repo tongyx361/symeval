@@ -29,7 +29,7 @@ warnings.filterwarnings("ignore", category=SymPyDeprecationWarning)
 
 STRIP_STRS: List[str] = [
     ":",
-    ".",
+    # ".",
     "/",
     ",",
     "#",
@@ -46,7 +46,7 @@ STRIP_STRS: List[str] = [
     "\\[",
     "\\]",
 ]
-NO_TRAILING_STRS: List[str] = ["(", "[", "{", "\\"] + STRIP_STRS
+NO_TRAILING_STRS: List[str] = ["(", "[", "{", "\\", "."] + STRIP_STRS
 NO_PRECEDING_PUNCS: List[str] = ["!", ")", "]", "}", "\\\\", "boxed"] + STRIP_STRS
 # Answer prefixes
 PRM800K_ANS_PRRFIX = "# Answer"
@@ -238,152 +238,6 @@ class EvaluatorBase:
 
 DEF_TIMEOUT: int = 5
 DEF_N_PROC: int = 2
-
-
-class EvaluatorBatchBase(EvaluatorBase):
-    """Base class for batch evaluators, providing additional method for batch evaluation.
-
-    Parameters
-    ----------
-    strict_extract: bool, default: True
-        Whether to extract answers strictly. If `False`, speculate the answer from the last number if needed.
-    timeout : int, default: DEF_TIMEOUT:=5
-        The timeout for each evaluation in seconds.
-    n_procs: int, default: 2
-        The number of processes to use for multiprocessing.
-    use_tqdm: bool, default: True
-        Whether to use tqdm for progress bar.
-    """
-
-    def __init__(
-        self,
-        strict_extract: bool = True,
-        timeout: int = DEF_TIMEOUT,
-        n_procs: int = DEF_N_PROC,
-        use_tqdm: bool = True,
-    ):
-        EvaluatorBase.__init__(self)
-        self.strict_extract: bool = strict_extract
-        self.timeout: int = timeout
-        self.n_procs: int = n_procs
-        self.use_tqdm: bool = use_tqdm
-
-    def batch_eval(
-        self,
-        ref_answers: List[str],
-        resps: List[str],
-    ) -> T_Tuple[List[str], List[bool]]:
-        """Evaluate a batch of `resps` against `ref_answers`."""
-        pred_answers: List[str] = self.batch_extract_ans(resps)
-        corrects: List[bool] = self.batch_eq(ref_answers, pred_answers)
-        return pred_answers, corrects
-
-    def batch_extract_ans(
-        self,
-        resps: List[str],
-    ) -> List[str]:
-        """Extract answers from a batch of responses."""
-        answers: List[str] = batch_exec(
-            self.extract_ans,
-            [{"resp_str": resp} for resp in resps],
-            n_procs=self.n_procs,
-            timeout=self.timeout,
-            use_tqdm=self.use_tqdm,
-            desc="Extracting",
-            def_val="",
-        )
-        return answers
-
-    def batch_eq(
-        self,
-        ref_answers: List[str],
-        pred_answers: List[str],
-    ) -> List[bool]:
-        """Evaluate a batch of `pred_answers` against `ref_answers`."""
-        uniq_ref_pref_ans_pairs: Set[T_Tuple[str, str]] = set(
-            zip(ref_answers, pred_answers)
-        )
-
-        corrects: List[bool] = batch_exec(
-            self.eq,
-            [
-                {"ref_ans": ref_ans, "pred": pred}
-                for ref_ans, pred in uniq_ref_pref_ans_pairs
-            ],
-            n_procs=self.n_procs,
-            timeout=self.timeout,
-            use_tqdm=self.use_tqdm,
-            desc="Judging",
-            def_val=False,
-        )
-
-        uniq_ref_pref_ans_pair2correct: T_Dict[T_Tuple[str, str], bool] = dict(
-            zip(uniq_ref_pref_ans_pairs, corrects)
-        )
-
-        return [
-            uniq_ref_pref_ans_pair2correct[(ref, pred)]
-            for ref, pred in zip(ref_answers, pred_answers)
-        ]
-
-    def batch_get_maj_answers(
-        self, answers_list: List[List[str]], accurate: bool = True
-    ) -> T_Tuple[List[List[str]], List[List[str]]]:
-        """Get the majority answers for a batch of answers."""
-        maj_answers_list: List[List[str]] = []
-        norm_answers_list: List[List[str]] = []
-        # ans_vote_list: List[T_Dict[str, int]] = []
-        # Gather all unique pairs of answers to evaluate
-
-        all_ans_pairs: List[T_Tuple[str, str]] = []
-
-        for answers in answers_list:
-            all_ans_pairs.extend(
-                (answer, answers[j])
-                for j, answer in enumerate(answers)
-                if j < len(answers) - 1
-            )
-
-        # Unzip pairs for batch evaluation
-        all_ans_is, all_ans_js = zip(*all_ans_pairs)
-
-        # Evaluate equality of answer pairs
-        all_eqs: List[bool] = (
-            self.batch_eq(all_ans_is, all_ans_js)
-            if accurate
-            else [ans_i == ans_j for ans_i, ans_j in all_ans_pairs]
-        )
-
-        all_pairs2eq: T_Dict[T_Tuple[str, str], bool] = dict(
-            zip(all_ans_pairs, all_eqs)
-        )
-
-        # Get the majority answers for each set of answers
-        for answers in answers_list:
-            maj_answers: List[str] = []
-            norm_answers: List[str] = []
-            ans_vote: T_Counter[str] = Counter()
-
-            for answer in answers:
-                exist_ans = next(
-                    (
-                        exist_answer
-                        for exist_answer in ans_vote
-                        if all_pairs2eq.get((answer, exist_answer), False)
-                    ),
-                    None,
-                )
-                norm_ans: str = exist_ans if exist_ans is not None else answer
-                ans_vote[norm_ans] += 1
-
-                norm_answers.append(norm_ans)
-                maj_answers.append(self.get_maj_ans_from_votes(ans_vote))
-
-            maj_answers_list.append(maj_answers)
-            norm_answers_list.append(norm_answers)
-            # ans_vote_list.append(dict(ans_vote))
-
-        return maj_answers_list, norm_answers_list
 
 
 def batch_exec(
@@ -629,6 +483,7 @@ UNITS: List[str] = [
     "V",
     "C",
     "s",
+    "degree",
     r"a\.?m\.?",
     r"(?<!\\)p\.?m\.?",  # 1\pm\sqrt{5}
 ]
@@ -849,7 +704,7 @@ LATEX_CMDS: List[str] = [
     "\\textsuperscript",
     "\\textsubscript",
     "\\text",
-    "\mbox",
+    "\\mbox",
     "\\renewcommand{\\arraystretch}",
 ]
 
@@ -1481,7 +1336,7 @@ class EvaluatorMath(EvaluatorBase):
 
         # remove units
         for unit in UNITS:
-            string = regex.sub(f"([-\d\.\*\^{{}}]+){unit}e?s?$", "\\1", string)
+            string = regex.sub(f"([-\d\.\*\^{{}}]+){unit}e?s?.*", "\\1", string)
 
         # Check if empty before splitting
         # if empty, return empty string
@@ -1570,7 +1425,7 @@ class EvaluatorMath(EvaluatorBase):
         return string
 
 
-class EvaluatorMathBatch(EvaluatorMath, EvaluatorBatchBase):
+class EvaluatorMathBatch(EvaluatorMath):
     """Batch evaluator for math problems, capable of extracting answer segment from complex resp and processing various mathematical objects
     (e.g. fractions, symbolic expressions, matrices, vectors) and special text (e.g. bool values).
 
@@ -1616,8 +1471,148 @@ class EvaluatorMathBatch(EvaluatorMath, EvaluatorBatchBase):
             abs_tol=abs_tol,
             percent_rel_tol=percent_rel_tol,
             ascii_only=ascii_only,
+            strict_extract=strict_extract,
         )
-        EvaluatorBatchBase.__init__(
-            self, timeout=timeout, n_procs=n_procs, use_tqdm=use_tqdm
+        self.timeout = timeout
+        self.n_procs = n_procs
+        self.use_tqdm = use_tqdm
+
+    def batch_eval(
+        self,
+        ref_answers: List[str],
+        resps: List[str],
+        problems: Optional[List[T_Union[str, bool]]] = None,
+    ) -> T_Tuple[List[str], List[bool]]:
+        """Evaluate a batch of `resps` against `ref_answers`."""
+        pred_answers: List[str] = self.batch_extract_ans(resps)
+        corrects: List[bool] = self.batch_eq(ref_answers, pred_answers, problems)
+        return pred_answers, corrects
+
+    def batch_eq(
+        self,
+        ref_answers: List[str],
+        pred_answers: List[str],
+        problems: Optional[List[T_Union[str, bool]]] = None,
+    ) -> List[bool]:
+        """Evaluate a batch of `pred_answers` against `ref_answers`."""
+        assert len(ref_answers) == len(
+            pred_answers
+        ), f"{len(ref_answers) = } != {len(pred_answers) = }"
+        set_flags: List[bool] = (
+            [is_querying4set(p) if isinstance(p, str) else p for p in problems]
+            if problems is not None
+            else [False] * len(ref_answers)
         )
-        self.strict_extract = strict_extract
+        uniq_judge_data: Set[T_Tuple[str, str, bool]] = set(
+            zip(ref_answers, pred_answers, set_flags)
+        )
+
+        corrects: List[bool] = batch_exec(
+            self.eq,
+            [
+                {"ref_ans": ref_ans, "pred": pred, "compare_sets": set_flag}
+                for ref_ans, pred, set_flag in uniq_judge_data
+            ],
+            n_procs=self.n_procs,
+            timeout=self.timeout,
+            use_tqdm=self.use_tqdm,
+            desc="Judging",
+            def_val=False,
+        )
+
+        uniq_judge_data2correct: T_Dict[T_Tuple[str, str, bool], bool] = dict(
+            zip(uniq_judge_data, corrects)
+        )
+
+        return [
+            uniq_judge_data2correct[(ref, pred, set_flag)]
+            for ref, pred, set_flag in zip(ref_answers, pred_answers, set_flags)
+        ]
+
+    def batch_extract_ans(
+        self,
+        resps: List[str],
+    ) -> List[str]:
+        """Extract answers from a batch of responses."""
+        answers: List[str] = batch_exec(
+            self.extract_ans,
+            [{"resp_str": resp} for resp in resps],
+            n_procs=self.n_procs,
+            timeout=self.timeout,
+            use_tqdm=self.use_tqdm,
+            desc="Extracting",
+            def_val="",
+        )
+        return answers
+
+    def batch_get_maj_answers(
+        self,
+        answers_list: List[List[str]],
+        problems: Optional[List[T_Union[str, bool]]] = None,
+        accurate: bool = True,
+    ) -> T_Tuple[List[List[str]], List[List[str]]]:
+        """Get the majority answers for a batch of answers."""
+        maj_answers_list: List[List[str]] = []
+        norm_answers_list: List[List[str]] = []
+        # ans_vote_list: List[T_Dict[str, int]] = []
+        # Gather all unique pairs of answers to evaluate
+
+        all_judge_data: List[T_Tuple[str, str, bool]] = []
+
+        set_flags: List[bool] = (
+            [
+                is_querying4set(problem) if isinstance(problem, str) else problem
+                for problem in problems
+            ]
+            if problems is not None
+            else [False] * len(answers_list)
+        )
+        for answers, set_flag in zip(answers_list, set_flags):
+            all_judge_data.extend(
+                (answer, answers[j], set_flag)
+                for j, answer in enumerate(answers)
+                if j < len(answers) - 1
+            )
+
+        # Unzip pairs for batch evaluation
+        all_ref_answers, all_pred_answers, all_set_flags = zip(*all_judge_data)
+
+        # Evaluate equality of answer pairs
+        all_eqs: List[bool] = (
+            self.batch_eq(all_ref_answers, all_pred_answers, all_set_flags)
+            if accurate
+            else [ref_ans == pred_ans for ref_ans, pred_ans, _ in all_judge_data]
+        )
+
+        all_judge_data2eq: T_Dict[T_Tuple[str, str, str], bool] = dict(
+            zip(all_judge_data, all_eqs)
+        )
+
+        # Get the majority answers for each set of answers
+        for answers, set_flag in zip(answers_list, set_flags):
+            maj_answers: List[str] = []
+            norm_answers: List[str] = []
+            ans_vote: T_Counter[str] = Counter()
+
+            for answer in answers:
+                exist_ans = next(
+                    (
+                        exist_answer
+                        for exist_answer in ans_vote
+                        if all_judge_data2eq.get(
+                            (answer, exist_answer, set_flag), False
+                        )
+                    ),
+                    None,
+                )
+                norm_ans: str = exist_ans if exist_ans is not None else answer
+                ans_vote[norm_ans] += 1
+
+                norm_answers.append(norm_ans)
+                maj_answers.append(self.get_maj_ans_from_votes(ans_vote))
+
+            maj_answers_list.append(maj_answers)
+            norm_answers_list.append(norm_answers)
+            # ans_vote_list.append(dict(ans_vote))
+
+        return maj_answers_list, norm_answers_list
