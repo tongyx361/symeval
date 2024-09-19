@@ -226,7 +226,7 @@ class EvaluatorBase:
         return maj_answers
 
     def get_maj_ans_from_votes(
-        self, ans_vote: T_Union[T_Counter[str], dict[str, int]]
+        self, ans_vote: T_Union[T_Counter[str], T_Dict[str, int]]
     ) -> str:
         if isinstance(ans_vote, dict):
             ans_vote = Counter(ans_vote)
@@ -328,10 +328,11 @@ class EvaluatorBatchBase(EvaluatorBase):
 
     def batch_get_maj_answers(
         self, answers_list: List[List[str]], accurate: bool = True
-    ) -> T_Tuple[List[List[str]], List[T_Dict[str, int]]]:
+    ) -> T_Tuple[List[List[str]], List[List[str]]]:
         """Get the majority answers for a batch of answers."""
         maj_answers_list: List[List[str]] = []
-        ans_vote_list: List[T_Dict[str, int]] = []
+        norm_answers_list: List[List[str]] = []
+        # ans_vote_list: List[T_Dict[str, int]] = []
         # Gather all unique pairs of answers to evaluate
 
         all_ans_pairs: List[T_Tuple[str, str]] = []
@@ -360,6 +361,7 @@ class EvaluatorBatchBase(EvaluatorBase):
         # Get the majority answers for each set of answers
         for answers in answers_list:
             maj_answers: List[str] = []
+            norm_answers: List[str] = []
             ans_vote: T_Counter[str] = Counter()
 
             for answer in answers:
@@ -371,17 +373,17 @@ class EvaluatorBatchBase(EvaluatorBase):
                     ),
                     None,
                 )
-                if exist_ans:
-                    ans_vote[exist_ans] += 1
-                else:
-                    ans_vote[answer] += 1
+                norm_ans: str = exist_ans if exist_ans is not None else answer
+                ans_vote[norm_ans] += 1
 
+                norm_answers.append(norm_ans)
                 maj_answers.append(self.get_maj_ans_from_votes(ans_vote))
 
             maj_answers_list.append(maj_answers)
-            ans_vote_list.append(dict(ans_vote))
+            norm_answers_list.append(norm_answers)
+            # ans_vote_list.append(dict(ans_vote))
 
-        return maj_answers_list, ans_vote_list
+        return maj_answers_list, norm_answers_list
 
 
 def batch_exec(
