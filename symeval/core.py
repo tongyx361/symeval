@@ -132,6 +132,8 @@ class EvaluatorBase:
     def extract_explicit_ans(self, resp_str: str) -> Optional[str]:
         resp_str = self.clean_trailing(resp_str)
         # might be answer only
+        if "<|start_answer|>" in resp_str and "<|end_answer|>" in resp_str:
+            return resp_str.split("<|start_answer|>")[1].split("<|end_answer|>")[0].strip()
         if "herefore" in resp_str:
             resp_str = resp_str.split("herefore")[-1].strip()
         if GSM8K_ANS_PREFIX in resp_str:

@@ -57,7 +57,7 @@ target="_blank" style="float:right; font-size:smaller">source</a>
 
 ### EvaluatorMathBatch
 
->  EvaluatorMathBatch (strict_extract:bool=True,
+>      EvaluatorMathBatch (strict_extract:bool=True,
 >                          include_percentage:bool=True, rel_tol:float=1e-09,
 >                          abs_tol:float=1e-08, percent_rel_tol:float=0.001,
 >                          ascii_only:bool=True, timeout:int=5, n_procs:int=2,
