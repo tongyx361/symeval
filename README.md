@@ -46,6 +46,8 @@ test_eq(
 )
 ```
 
+    Judging: 100%|██████████| 2/2 [00:00<00:00, 395.43it/s]
+
 Here we provide a quick start guide. For more details, please refer to
 the [API reference](https://tongyx361.github.io/symeval/core.html).
 
@@ -93,12 +95,16 @@ can:
 evaluator.extract_ans("Therefore, $1+1=\\boxed{2}$.")
 ```
 
+    '2'
+
 ``` python
 # Answer around "answer"
 evaluator.extract_ans(
     "Both $1$ and $11$ divide $11,$ so $\\boxed{11}=2$, and since $1,$ $2,$ $4,$ $5,$ $10,$ and $20$ divide $20,$ then $\\boxed{20}=6$. The inner expression, $\\boxed{11}\\times\\boxed{20}=2\\times6=12$. Finally, $\\boxed{12}=6$ because $1,$ $2,$ $3,$ $4,$ $6,$ and $12$ divide $12.$\n\nTherefore, $6$ is our answer. Please note that we have not boxed the correct answer as we normally do, as that would be especially confusing for this problem."
 )
 ```
+
+    'False'
 
 ``` python
 # Use the last number by default
@@ -108,10 +114,14 @@ evaluator.extract_ans(
 # More cases ...
 ```
 
+    ''
+
 ``` python
 # Normalize fraction
 evaluator.extract_ans("The answer is 1/2")
 ```
+
+    '\\frac{1}{2}'
 
 ``` python
 # Normalize pmatrix
@@ -120,6 +130,8 @@ evaluator.extract_ans(
 )
 # More cases ...
 ```
+
+    '\\begin{array}3\\\\frac{\\pi}{2}\\end{array}'
 
 More test cases:
 
@@ -130,6 +142,12 @@ More test cases:
 test_eq(evaluator.norm_ans_str("864 \\mbox{ inches}^2"), "864")
 test_eq(evaluator.norm_ans_str("\\frac{270}7\\text{ degrees}"), "\\frac{270}7")
 test_eq(evaluator.norm_ans_str(".0000672"), "0.0000672")
+test_eq(
+    evaluator.extract_ans(
+        "The sum of the interior angles in any $n$-sided polygon is $180(n-2)$ degrees, so the angle measures in a polygon with 7 sides sum to $180(7-2) = 900$ degrees, which means that the desired polygon has more than 7 sides.  Meanwhile, the angle measures in a polygon with 8 sides sum to $180(8-2) = 1080$ degrees.  So, it's possible that the polygon has $\\boxed{8}$ sides, and that the last angle measures $10^\\circ$.\n\nTo see that this is the only possibility, note that the angle measures in a polygon with 9 sides sum to $180(9-2) = 1260$ degrees.  Therefore, if the polygon has more than 8 sides, then the last interior angle must measure at least $1260^\\circ - 1070^\\circ = 190^\\circ$.  But this is impossible because each interior angle of a convex polygon has measure less than $180^\\circ$."
+    ),
+    "8",
+)
 ```
 
 </details>
@@ -149,9 +167,13 @@ calculation, is able to correctly process
 evaluator.eq("x+y", "y+x") == True  # Expression
 ```
 
+    True
+
 ``` python
 evaluator.eq("\\frac{1}{2}", "0.5") == True  # LaTeX
 ```
+
+    True
 
 ``` python
 evaluator.eq(
@@ -160,14 +182,20 @@ evaluator.eq(
 )  # Matrix (Vector)
 ```
 
+    True
+
 ``` python
 evaluator.eq("{1,2}", "{2,1}", compare_sets=True)  # Set
 ```
+
+    True
 
 ``` python
 evaluator.eq("no", "false")  # Bool
 # More mathematical objects and special texts ...
 ```
+
+    True
 
 More test cases:
 
@@ -223,6 +251,10 @@ maj_answers_list, norm_answers_list = evaluator.batch_get_maj_answers(
 print(f"{maj_answers_list = } <- {norm_answers_list = }")
 ```
 
+    Judging: 100%|██████████| 7/7 [00:00<00:00, 38990.87it/s]
+
+    maj_answers_list = [['', '', '1', '1', '2', '2', '2', '3']] <- norm_answers_list = [['', '', '1', '2', '2', '3', '3', '3']]
+
 ### Parsing LaTeX
 
 #### Interval
@@ -235,13 +267,19 @@ from symeval import latex2sympy_interval
 latex2sympy_interval("(-11,-10)\\cup\\{-\\sqrt{110}\\}")
 ```
 
+$\displaystyle \left(-11, -10\right)$
+
 ``` python
 latex2sympy_interval("(-\\infty, 0) \\cup (0, \\infty)")
 ```
 
+$\displaystyle \left(-\infty, 0\right) \cup \left(0, \infty\right)$
+
 ``` python
 latex2sympy_interval("(a+b,b]")
 ```
+
+$\displaystyle \left(a + b, b\right]$
 
 #### Matrix / Vector
 
@@ -255,11 +293,15 @@ evaluator = EvaluatorMathBatch()
 evaluator.latex2matrix(r"\sqrt{400\cos^2(9\pi/44)},\frac{\pi}{4}")
 ```
 
+$\displaystyle \left[\begin{matrix}\sqrt{400 \cos^{2}{\left(\frac{9 \pi}{44} \right)}} & \frac{\pi}{4}\end{matrix}\right]$
+
 ``` python
 evaluator.latex2matrix(
     r"\begin{pmatrix} \frac{1}{2} & 0 & -\frac{\sqrt{3}}{2} \\ 0 & 1 & 0 \\ \frac{\sqrt{3}}{2} & 0 & \frac{1}{2} \end{pmatrix}"
 )
 ```
+
+$\displaystyle \left[\begin{matrix}\frac{1}{2} & 0 & - \frac{\sqrt{3}}{2}\\0 & 1 & 0\\\frac{\sqrt{3}}{2} & 0 & \frac{1}{2}\end{matrix}\right]$
 
 ``` python
 test_eq(

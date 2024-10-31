@@ -136,8 +136,6 @@ class EvaluatorBase:
             return (
                 resp_str.split("<|start_answer|>")[1].split("<|end_answer|>")[0].strip()
             )
-        if "herefore" in resp_str:
-            resp_str = resp_str.split("herefore")[-1].strip()
         if GSM8K_ANS_PREFIX in resp_str:
             resp_str = resp_str.split(GSM8K_ANS_PREFIX)[-1].strip()
         if PRM800K_ANS_PRRFIX in resp_str:
@@ -1519,9 +1517,9 @@ class EvaluatorMathBatch(EvaluatorMath):
 
     def batch_eq(
         self,
-        ref_answers: List[str],
-        pred_answers: List[str],
-        problems: Optional[List[T_Union[str, bool]]] = None,
+        ref_answers: Sequence[str],
+        pred_answers: Sequence[str],
+        problems: Optional[Sequence[T_Union[str, bool]]] = None,
     ) -> List[bool]:
         """Evaluate a batch of `pred_answers` against `ref_answers`."""
         assert len(ref_answers) == len(
@@ -1537,8 +1535,8 @@ class EvaluatorMathBatch(EvaluatorMath):
         )
         uniq_ref_answers, uniq_pred_answers, uniq_set_flags = zip(*uniq_judge_data)
 
-        uniq_judge_data2correct: T_Dict[T_Tuple[str, str, bool], bool] = self.batch_get_eq_map(
-            uniq_ref_answers, uniq_pred_answers, uniq_set_flags
+        uniq_judge_data2correct: T_Dict[T_Tuple[str, str, bool], bool] = (
+            self.batch_get_eq_map(uniq_ref_answers, uniq_pred_answers, uniq_set_flags)
         )
 
         return [
@@ -1566,7 +1564,6 @@ class EvaluatorMathBatch(EvaluatorMath):
         self,
         answers_list: List[List[str]],
         problems: Optional[List[T_Union[str, bool]]] = None,
-        accurate: bool = True,
     ) -> T_Tuple[List[List[str]], List[List[str]]]:
         """Get the majority answers for a batch of answers."""
         maj_answers_list: List[List[str]] = []
@@ -1594,15 +1591,8 @@ class EvaluatorMathBatch(EvaluatorMath):
         # Unzip pairs for batch evaluation
         all_ref_answers, all_pred_answers, all_set_flags = zip(*all_judge_data)
 
-        # Evaluate equality of answer pairs
-        all_eqs: List[bool] = (
-            self.batch_eq(all_ref_answers, all_pred_answers, all_set_flags)
-            if accurate
-            else [ref_ans == pred_ans for ref_ans, pred_ans, _ in all_judge_data]
-        )
-
-        all_judge_data2eq: T_Dict[T_Tuple[str, str, str], bool] = dict(
-            zip(all_judge_data, all_eqs)
+        all_judge_data2eq: T_Dict[T_Tuple[str, str, bool], bool] = (
+            self.batch_get_eq_map(all_ref_answers, all_pred_answers, all_set_flags)
         )
 
         # Get the majority answers for each set of answers
