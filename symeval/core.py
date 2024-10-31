@@ -11,7 +11,7 @@ from math import isclose
 from typing import Any, Callable
 from typing import Counter as T_Counter
 from typing import Dict as T_Dict
-from typing import List, Match, Optional, Set
+from typing import List, Match, Optional, Sequence, Set
 from typing import Tuple as T_Tuple
 from typing import Union as T_Union
 
@@ -133,7 +133,9 @@ class EvaluatorBase:
         resp_str = self.clean_trailing(resp_str)
         # might be answer only
         if "<|start_answer|>" in resp_str and "<|end_answer|>" in resp_str:
-            return resp_str.split("<|start_answer|>")[1].split("<|end_answer|>")[0].strip()
+            return (
+                resp_str.split("<|start_answer|>")[1].split("<|end_answer|>")[0].strip()
+            )
         if "herefore" in resp_str:
             resp_str = resp_str.split("herefore")[-1].strip()
         if GSM8K_ANS_PREFIX in resp_str:
@@ -1490,6 +1492,31 @@ class EvaluatorMathBatch(EvaluatorMath):
         corrects: List[bool] = self.batch_eq(ref_answers, pred_answers, problems)
         return pred_answers, corrects
 
+    def batch_get_eq_map(
+        self,
+        ref_answers: Sequence[str],
+        pred_answers: Sequence[str],
+        querying4set_flags: Sequence[bool],
+    ) -> T_Dict[T_Tuple[str, str, bool], bool]:
+        corrects: List[bool] = batch_exec(
+            self.eq,
+            [
+                {"ref_ans": ref_ans, "pred": pred, "compare_sets": set_flag}
+                for ref_ans, pred, set_flag in zip(
+                    ref_answers, pred_answers, querying4set_flags
+                )
+            ],
+            n_procs=self.n_procs,
+            timeout=self.timeout,
+            use_tqdm=self.use_tqdm,
+            desc="Judging",
+            def_val=False,
+        )
+        eq_map: T_Dict[T_Tuple[str, str, bool], bool] = dict(
+            zip(zip(ref_answers, pred_answers, querying4set_flags), corrects)
+        )
+        return eq_map
+
     def batch_eq(
         self,
         ref_answers: List[str],
@@ -1508,22 +1535,10 @@ class EvaluatorMathBatch(EvaluatorMath):
         uniq_judge_data: Set[T_Tuple[str, str, bool]] = set(
             zip(ref_answers, pred_answers, set_flags)
         )
+        uniq_ref_answers, uniq_pred_answers, uniq_set_flags = zip(*uniq_judge_data)
 
-        corrects: List[bool] = batch_exec(
-            self.eq,
-            [
-                {"ref_ans": ref_ans, "pred": pred, "compare_sets": set_flag}
-                for ref_ans, pred, set_flag in uniq_judge_data
-            ],
-            n_procs=self.n_procs,
-            timeout=self.timeout,
-            use_tqdm=self.use_tqdm,
-            desc="Judging",
-            def_val=False,
-        )
-
-        uniq_judge_data2correct: T_Dict[T_Tuple[str, str, bool], bool] = dict(
-            zip(uniq_judge_data, corrects)
+        uniq_judge_data2correct: T_Dict[T_Tuple[str, str, bool], bool] = self.batch_get_eq_map(
+            uniq_ref_answers, uniq_pred_answers, uniq_set_flags
         )
 
         return [
