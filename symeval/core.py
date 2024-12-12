@@ -1,5 +1,4 @@
 import os
-import random
 import re as regex
 import signal
 import threading
@@ -8,10 +7,9 @@ from collections import Counter
 from concurrent.futures import TimeoutError
 from datetime import datetime
 from math import isclose
-from typing import Any, Callable
+from typing import Any, Callable, List, Match, Optional, Sequence, Set
 from typing import Counter as T_Counter
 from typing import Dict as T_Dict
-from typing import List, Match, Optional, Sequence, Set
 from typing import Tuple as T_Tuple
 from typing import Union as T_Union
 
@@ -97,15 +95,18 @@ class EvaluatorBase:
 
     Parameters
     ----------
-    strict_extract: bool, default: True
-        Whether to extract answers strictly. If `False`, speculate the answer from the last number if needed.
+    ans_extract_mode: str, default: "boxed"
+        Options:
+        - "boxed": Extract answer from the boxed expression.
+        - "explicit": Extract answer from the explicit answer segment.
+        - "speculate": Speculate the answer from the last number or latex formula.
     """
 
     def __init__(
         self,
-        strict_extract: bool = True,
+        ans_extract_mode: str = "boxed",
     ):
-        self.strict_extract: bool = strict_extract
+        self.ans_extract_mode: str = ans_extract_mode
 
     def eq(self, ref_ans: str, pred: str) -> bool:
         """Check if reference answer and prediction answer are **literally** equal."""
@@ -113,10 +114,14 @@ class EvaluatorBase:
 
     def extract_ans(self, resp_str: str) -> str:
         """Extract answer segment from complete `resp`."""
-        ans: Optional[str] = self.extract_explicit_ans(resp_str)
-        if ans is not None:
-            return ans
-        elif not self.strict_extract:
+        if self.ans_extract_mode == "boxed":
+            return extract_boxed(resp_str)
+
+        if self.ans_extract_mode == "explicit":
+            ans: Optional[str] = self.extract_explicit_ans(resp_str)
+            if ans is not None:
+                return ans
+        if self.ans_extract_mode == "speculate":
             # Speculate with the last latex formula
             matches: List[str] = regex.findall(
                 r"(?:\$|\\\(|\\\[)([^\$]+)(?:\$|\\\(|\\\[)", resp_str, regex.DOTALL
@@ -127,6 +132,7 @@ class EvaluatorBase:
             matches = regex.findall(r"-?\d*\.?\d+", resp_str.replace(",", ""))
             if len(matches) > 0:
                 return matches[-1]
+
         return ""  # Empty str if no answer is found
 
     def extract_explicit_ans(self, resp_str: str) -> Optional[str]:
@@ -239,7 +245,7 @@ class EvaluatorBase:
 
 
 DEF_TIMEOUT: int = 5
-DEF_N_PROC: int = 2
+DEF_N_PROC: int = os.cpu_count() // 2
 
 
 def batch_exec(
@@ -788,8 +794,11 @@ class EvaluatorMath(EvaluatorBase):
 
     Parameters
     ----------
-    strict_extract: bool, default: True
-        Whether to extract answers strictly. If `False`, speculate the answer from the last number if needed.
+    ans_extract_mode: str, default: "boxed"
+        Options:
+        - "boxed": Extract answer from the boxed expression.
+        - "explicit": Extract answer from the explicit answer segment.
+        - "speculate": Speculate the answer from the last number or latex formula.
     include_percentage : bool, default: True
         Whether to include percentage comparisons.
     rel_tol : float, default: DEF_REL_TOL
@@ -804,7 +813,7 @@ class EvaluatorMath(EvaluatorBase):
 
     def __init__(
         self,
-        strict_extract: bool = True,
+        ans_extract_mode: str = "boxed",
         include_percentage: bool = True,
         rel_tol: float = DEF_REL_TOL,
         abs_tol: float = DEF_ABS_TOL,
@@ -812,7 +821,7 @@ class EvaluatorMath(EvaluatorBase):
         ascii_only: bool = True,
     ):
         EvaluatorBase.__init__(self)
-        self.strict_extract: bool = strict_extract
+        self.ans_extract_mode: str = ans_extract_mode
         self.include_percentage: bool = include_percentage
         self.rel_tol: float = rel_tol
         self.abs_tol = abs_tol
@@ -1433,8 +1442,11 @@ class EvaluatorMathBatch(EvaluatorMath):
 
     Parameters
     ----------
-    strict_extract: bool, default: True
-        Whether to extract answers strictly. If `False`, speculate the answer from the last number if needed.
+    ans_extract_mode: str, default: "boxed"
+        Options:
+        - "boxed": Extract answer from the boxed expression.
+        - "explicit": Extract answer from the explicit answer segment.
+        - "speculate": Speculate the answer from the last number or latex formula.
     include_percentage : bool, default: True
         Whether to include percentage comparisons.
     rel_tol : float, default: DEF_REL_TOL
@@ -1455,7 +1467,7 @@ class EvaluatorMathBatch(EvaluatorMath):
 
     def __init__(
         self,
-        strict_extract: bool = True,
+        ans_extract_mode: str = "boxed",
         include_percentage: bool = True,
         rel_tol: float = DEF_REL_TOL,
         abs_tol: float = DEF_ABS_TOL,
@@ -1465,7 +1477,6 @@ class EvaluatorMathBatch(EvaluatorMath):
         n_procs: int = DEF_N_PROC,
         use_tqdm: bool = True,
     ):
-
         EvaluatorMath.__init__(
             self,
             include_percentage=include_percentage,
@@ -1473,7 +1484,7 @@ class EvaluatorMathBatch(EvaluatorMath):
             abs_tol=abs_tol,
             percent_rel_tol=percent_rel_tol,
             ascii_only=ascii_only,
-            strict_extract=strict_extract,
+            ans_extract_mode=ans_extract_mode,
         )
         self.timeout = timeout
         self.n_procs = n_procs

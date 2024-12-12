@@ -17,7 +17,9 @@ pip install "git+https://github.com/tongyx361/symeval.git"
 ``` python
 from symeval import *
 
-evaluator = EvaluatorMathBatch()
+evaluator = (
+    EvaluatorMathBatch()
+)  # By default, the evaluator only extract answers from the boxed expression.
 ```
 
 `symeval` provides elaborate answer extraction and correctness judgement
@@ -46,7 +48,7 @@ test_eq(
 )
 ```
 
-    Judging: 100%|██████████| 2/2 [00:00<00:00, 395.43it/s]
+    Judging: 100%|██████████| 2/2 [00:00<00:00, 19463.13it/s]
 
 Here we provide a quick start guide. For more details, please refer to
 the [API reference](https://tongyx361.github.io/symeval/core.html).
@@ -59,10 +61,10 @@ target="_blank" style="float:right; font-size:smaller">source</a>
 
 ### EvaluatorMathBatch
 
->      EvaluatorMathBatch (strict_extract:bool=True,
+>      EvaluatorMathBatch (ans_extract_mode:str='boxed',
 >                          include_percentage:bool=True, rel_tol:float=1e-09,
 >                          abs_tol:float=1e-08, percent_rel_tol:float=0.001,
->                          ascii_only:bool=True, timeout:int=5, n_procs:int=2,
+>                          ascii_only:bool=True, timeout:int=5, n_procs:int=96,
 >                          use_tqdm:bool=True)
 
 *Batch evaluator for math problems, capable of extracting answer segment
@@ -72,14 +74,14 @@ text (e.g. bool values).*
 
 |  | **Type** | **Default** | **Details** |
 |----|----|----|----|
-| strict_extract | bool | True |  |
+| ans_extract_mode | str | boxed |  |
 | include_percentage | bool | True | Whether to include percentage comparisons. |
 | rel_tol | float | 1e-09 | The relative tolerance for numerical comparisons. |
 | abs_tol | float | 1e-08 | The absolute tolerance for numerical comparisons. Necessary for precision issues. |
 | percent_rel_tol | float | 0.001 | The absolute tolerance for percentage comparisons. |
 | ascii_only | bool | True | Only allowing ASCII characters |
 | timeout | int | 5 | The timeout for each evaluation. |
-| n_procs | int | 2 |  |
+| n_procs | int | 96 |  |
 | use_tqdm | bool | True |  |
 
 #### Accurately Extracting Answer Strings
@@ -89,6 +91,10 @@ can:
 
 1.  **extract** short answers from long responses rather **accurately**
 2.  and **normalize** into a **mathematical** expression.
+
+``` python
+evaluator = EvaluatorMathBatch(ans_extract_mode="speculate")
+```
 
 ``` python
 # MATH-style boxed answer
@@ -114,14 +120,14 @@ evaluator.extract_ans(
 # More cases ...
 ```
 
-    ''
+    'False'
 
 ``` python
 # Normalize fraction
 evaluator.extract_ans("The answer is 1/2")
 ```
 
-    '\\frac{1}{2}'
+    'Theansweris1/2'
 
 ``` python
 # Normalize pmatrix
@@ -131,7 +137,7 @@ evaluator.extract_ans(
 # More cases ...
 ```
 
-    '\\begin{array}3\\\\frac{\\pi}{2}\\end{array}'
+    'Theansweris\\begin{array}3\\\\frac{\\pi}{2}\\end{array}'
 
 More test cases:
 
@@ -251,7 +257,7 @@ maj_answers_list, norm_answers_list = evaluator.batch_get_maj_answers(
 print(f"{maj_answers_list = } <- {norm_answers_list = }")
 ```
 
-    Judging: 100%|██████████| 7/7 [00:00<00:00, 38990.87it/s]
+    Judging: 100%|██████████| 7/7 [00:00<00:00, 55188.21it/s]
 
     maj_answers_list = [['', '', '1', '1', '2', '2', '2', '3']] <- norm_answers_list = [['', '', '1', '2', '2', '3', '3', '3']]
 
