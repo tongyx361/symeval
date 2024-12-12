@@ -115,7 +115,10 @@ class EvaluatorBase:
     def extract_ans(self, resp_str: str) -> str:
         """Extract answer segment from complete `resp`."""
         if self.ans_extract_mode == "boxed":
-            return extract_boxed(resp_str)
+            if "oxed{" in resp_str:
+                return extract_boxed(resp_str)
+            else:
+                return ""
 
         if self.ans_extract_mode == "explicit":
             ans: Optional[str] = self.extract_explicit_ans(resp_str)
