@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.6.39">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="An elaborate answer extraction and correctness judgement pipeline based on regular expressions and SymPy symbolic calculation, which is able to correctly process">
+
+<title>SymEval – symeval</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-e26003cea8cd680ca0c55a263523d882.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-7c6d40aa23c779922b80e0578a9e8972.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="styles.css">
+<meta property="og:title" content="SymEval – symeval">
+<meta property="og:description" content="An elaborate answer extraction and correctness judgement pipeline based on regular expressions and SymPy symbolic calculation, which is able to correctly process">
+<meta property="og:site_name" content="symeval">
+<meta name="twitter:title" content="SymEval – symeval">
+<meta name="twitter:description" content="An elaborate answer extraction and correctness judgement pipeline based on regular expressions and SymPy symbolic calculation, which is able to correctly process">
+<meta name="twitter:card" content="summary">
+</head>
+
+<body class="nav-sidebar floating nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">symeval</span>
+    </a>
+  </div>
+        <div class="quarto-navbar-tools tools-end">
+</div>
+          <div id="quarto-search" class="" title="Search"></div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./index.html">SymEval</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">SymEval</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./core.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><code>symeval</code></span></a>
+  </div>
+</li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#installation" id="toc-installation" class="nav-link active" data-scroll-target="#installation">Installation</a></li>
+  <li><a href="#quick-start" id="toc-quick-start" class="nav-link" data-scroll-target="#quick-start">Quick Start</a>
+  <ul class="collapse">
+  <li><a href="#evaluatormathbatch" id="toc-evaluatormathbatch" class="nav-link" data-scroll-target="#evaluatormathbatch">EvaluatorMathBatch</a></li>
+  <li><a href="#parsing-latex" id="toc-parsing-latex" class="nav-link" data-scroll-target="#parsing-latex">Parsing LaTeX</a></li>
+  <li><a href="#normalization" id="toc-normalization" class="nav-link" data-scroll-target="#normalization">Normalization</a></li>
+  <li><a href="#processing-sets" id="toc-processing-sets" class="nav-link" data-scroll-target="#processing-sets">Processing Sets</a></li>
+  <li><a href="#manipulating-strings" id="toc-manipulating-strings" class="nav-link" data-scroll-target="#manipulating-strings">Manipulating Strings</a></li>
+  </ul></li>
+  <li><a href="#contribution-guidelines" id="toc-contribution-guidelines" class="nav-link" data-scroll-target="#contribution-guidelines">Contribution Guidelines</a>
+  <ul class="collapse">
+  <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup">Setup</a></li>
+  <li><a href="#file-structure" id="toc-file-structure" class="nav-link" data-scroll-target="#file-structure">File Structure</a></li>
+  <li><a href="#checklist-before-commit" id="toc-checklist-before-commit" class="nav-link" data-scroll-target="#checklist-before-commit">Checklist Before Commit</a></li>
+  </ul></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/tongyx361/symeval/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">SymEval</h1>
+</div>
+
+<div>
+  <div class="description">
+    An elaborate answer extraction and correctness judgement pipeline based on regular expressions and SymPy symbolic calculation, which is able to correctly process
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<!-- WARNING: THIS FILE WAS AUTOGENERATED! DO NOT EDIT! -->
+<section id="installation" class="level2">
+<h2 class="anchored" data-anchor-id="installation">Installation</h2>
+<p>For common users/developers, please just run the following command the install the package:</p>
+<pre class="shell"><code>pip install "git+https://github.com/tongyx361/symeval.git"</code></pre>
+</section>
+<section id="quick-start" class="level2">
+<h2 class="anchored" data-anchor-id="quick-start">Quick Start</h2>
+<div id="cell-4" class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> symeval <span class="im">import</span> <span class="op">*</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> (</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    EvaluatorMathBatch()</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>)  <span class="co"># By default, the evaluator only extract answers from the boxed expression.</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><code>symeval</code> provides elaborate answer extraction and correctness judgement pipelines based on regular expressions and SymPy symbolic calculation, which is able to correctly process</p>
+<ul>
+<li>most <strong>mathematical objects</strong> such as matrices (vectors), intervals, symbols besides numbers,</li>
+<li>as well as some <strong>special texts</strong> like bool expressions, dates and times.</li>
+</ul>
+<p><a href="https://tongyx361.github.io/symeval/core.html#evaluatormath"><code>EvaluatorMath</code></a> implements an elaborate evaluation pipeline for mathematical reasoning tasks.</p>
+<p>SymPy symbolic calculation causes risks of ex-long evaluation time.</p>
+<p>To address this, we implement <a href="https://tongyx361.github.io/symeval/core.html#evaluatormathbatch"><code>EvaluatorMathBatch</code></a> to evaluate in batch with <strong>timeout</strong> but still efficiently.</p>
+<div id="cell-6" class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>test_eq(</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    evaluator.batch_eq(ref_answers<span class="op">=</span>[<span class="st">"1/2"</span>, <span class="st">"1/2"</span>], pred_answers<span class="op">=</span>[<span class="st">"0.5"</span>, <span class="st">"2/4"</span>]),</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    [<span class="va">True</span>] <span class="op">*</span> <span class="dv">2</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Judging: 100%|██████████| 2/2 [00:00&lt;00:00, 19463.13it/s]</code></pre>
+</div>
+</div>
+<p>Here we provide a quick start guide. For more details, please refer to the <a href="https://tongyx361.github.io/symeval/core.html">API reference</a>.</p>
+<hr>
+<p><a href="https://github.com/tongyx361/symeval/blob/main/symeval/core.py#LNone" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="evaluatormathbatch" class="level3">
+<h3 class="anchored" data-anchor-id="evaluatormathbatch">EvaluatorMathBatch</h3>
+<blockquote class="blockquote">
+<pre><code> EvaluatorMathBatch (ans_extract_mode:str='boxed',
+                     include_percentage:bool=True, rel_tol:float=1e-09,
+                     abs_tol:float=1e-08, percent_rel_tol:float=0.001,
+                     ascii_only:bool=True, timeout:int=5, n_procs:int=2,
+                     use_tqdm:bool=True)</code></pre>
+</blockquote>
+<p><em>Batch evaluator for math problems, capable of extracting answer segment from complex resp and processing various mathematical objects (e.g.&nbsp;fractions, symbolic expressions, matrices, vectors) and special text (e.g.&nbsp;bool values).</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 6%">
+<col style="width: 25%">
+<col style="width: 34%">
+<col style="width: 34%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th><strong>Type</strong></th>
+<th><strong>Default</strong></th>
+<th><strong>Details</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>ans_extract_mode</td>
+<td>str</td>
+<td>boxed</td>
+<td></td>
+</tr>
+<tr class="even">
+<td>include_percentage</td>
+<td>bool</td>
+<td>True</td>
+<td>Whether to include percentage comparisons.</td>
+</tr>
+<tr class="odd">
+<td>rel_tol</td>
+<td>float</td>
+<td>1e-09</td>
+<td>The relative tolerance for numerical comparisons.</td>
+</tr>
+<tr class="even">
+<td>abs_tol</td>
+<td>float</td>
+<td>1e-08</td>
+<td>The absolute tolerance for numerical comparisons. Necessary for precision issues.</td>
+</tr>
+<tr class="odd">
+<td>percent_rel_tol</td>
+<td>float</td>
+<td>0.001</td>
+<td>The absolute tolerance for percentage comparisons.</td>
+</tr>
+<tr class="even">
+<td>ascii_only</td>
+<td>bool</td>
+<td>True</td>
+<td>Only allowing ASCII characters</td>
+</tr>
+<tr class="odd">
+<td>timeout</td>
+<td>int</td>
+<td>5</td>
+<td>The timeout for each evaluation.</td>
+</tr>
+<tr class="even">
+<td>n_procs</td>
+<td>int</td>
+<td>2</td>
+<td></td>
+</tr>
+<tr class="odd">
+<td>use_tqdm</td>
+<td>bool</td>
+<td>True</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<section id="accurately-extracting-answer-strings" class="level4">
+<h4 class="anchored" data-anchor-id="accurately-extracting-answer-strings">Accurately Extracting Answer Strings</h4>
+<p><a href="https://tongyx361.github.io/symeval/core.html#evaluatormath"><code>EvaluatorMath</code></a> can:</p>
+<ol type="1">
+<li><strong>extract</strong> short answers from long responses rather <strong>accurately</strong></li>
+<li>and <strong>normalize</strong> into a <strong>mathematical</strong> expression.</li>
+</ol>
+<div id="cell-11" class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> EvaluatorMathBatch(ans_extract_mode<span class="op">=</span><span class="st">"speculate"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="cell-12" class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># MATH-style boxed answer</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>evaluator.extract_ans(<span class="st">"Therefore, $1+1=</span><span class="ch">\\</span><span class="st">boxed</span><span class="sc">{2}</span><span class="st">$."</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>'2'</code></pre>
+</div>
+</div>
+<div id="cell-13" class="cell">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Answer around "answer"</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>evaluator.extract_ans(</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Both $1$ and $11$ divide $11,$ so $</span><span class="ch">\\</span><span class="st">boxed</span><span class="sc">{11}</span><span class="st">=2$, and since $1,$ $2,$ $4,$ $5,$ $10,$ and $20$ divide $20,$ then $</span><span class="ch">\\</span><span class="st">boxed</span><span class="sc">{20}</span><span class="st">=6$. The inner expression, $</span><span class="ch">\\</span><span class="st">boxed</span><span class="sc">{11}</span><span class="ch">\\</span><span class="st">times</span><span class="ch">\\</span><span class="st">boxed</span><span class="sc">{20}</span><span class="st">=2</span><span class="ch">\\</span><span class="st">times6=12$. Finally, $</span><span class="ch">\\</span><span class="st">boxed</span><span class="sc">{12}</span><span class="st">=6$ because $1,$ $2,$ $3,$ $4,$ $6,$ and $12$ divide $12.$</span><span class="ch">\n\n</span><span class="st">Therefore, $6$ is our answer. Please note that we have not boxed the correct answer as we normally do, as that would be especially confusing for this problem."</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>'False'</code></pre>
+</div>
+</div>
+<div id="cell-14" class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Use the last number by default</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>evaluator.extract_ans(</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">'First, we need to count the total number of letters in the word "CIRCLE". There are 6 letters.</span><span class="ch">\n\n</span><span class="st">Next, we need to count the number of distinct letters. There are 6 distinct letters in the word "CIRCLE": C, I, R, L, E, and G.</span><span class="ch">\n\n</span><span class="st">Now, let</span><span class="ch">\'</span><span class="st">s consider the arrangements of the distinct letters. The number of ways to arrange n distinct items is n factorial (n!). So, we have 6! = 6 × 5 × 4 × 3 × 2 × 1 = 720 ways to arrange the distinct letters.</span><span class="ch">\n\n</span><span class="st">However, the word "CIRCLE" has one letter that repeats (the letter </span><span class="ch">\'</span><span class="st">C</span><span class="ch">\'</span><span class="st"> repeats twice). We have over-counted the number of distinct arrangements by including arrangements that are just rotations of each other (for example, "CIRCLE" and "LCIRCE" are considered different arrangements here, but they are the same word when read).</span><span class="ch">\n\n</span><span class="st">To correct for this, we divide the total number of arrangements by the number of ways to arrange the repeated letters. The number of ways to arrange 2 identical items is 2! = 2 × 1 = 2. So, we divide the total number of arrangements by 2 to get the correct number of distinct arrangements.</span><span class="ch">\n\n</span><span class="st">Therefore, the number of ways to arrange the letters of the word "CIRCLE" is 720 ÷ 2 = 360.'</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="co"># More cases ...</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>'False'</code></pre>
+</div>
+</div>
+<div id="cell-15" class="cell">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Normalize fraction</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>evaluator.extract_ans(<span class="st">"The answer is 1/2"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>'Theansweris1/2'</code></pre>
+</div>
+</div>
+<div id="cell-16" class="cell">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Normalize pmatrix</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>evaluator.extract_ans(</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"The answer is </span><span class="ch">\\</span><span class="st">begin</span><span class="sc">{pmatrix}</span><span class="st"> 3 </span><span class="ch">\\\\</span><span class="st"> </span><span class="ch">\\</span><span class="st">frac{</span><span class="ch">\\</span><span class="st">pi}</span><span class="sc">{2}</span><span class="st"> </span><span class="ch">\\</span><span class="st">end</span><span class="sc">{pmatrix}</span><span class="st">"</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="co"># More cases ...</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>'Theansweris\\begin{array}3\\\\frac{\\pi}{2}\\end{array}'</code></pre>
+</div>
+</div>
+<p>More test cases:</p>
+<div id="cell-18" class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.norm_ans_str(<span class="st">"864 </span><span class="ch">\\</span><span class="st">mbox{ inches}^2"</span>), <span class="st">"864"</span>)</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.norm_ans_str(<span class="st">"</span><span class="ch">\\</span><span class="st">frac</span><span class="sc">{270}</span><span class="st">7</span><span class="ch">\\</span><span class="st">text{ degrees}"</span>), <span class="st">"</span><span class="ch">\\</span><span class="st">frac</span><span class="sc">{270}</span><span class="st">7"</span>)</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.norm_ans_str(<span class="st">".0000672"</span>), <span class="st">"0.0000672"</span>)</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>test_eq(</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    evaluator.extract_ans(</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"The sum of the interior angles in any $n$-sided polygon is $180(n-2)$ degrees, so the angle measures in a polygon with 7 sides sum to $180(7-2) = 900$ degrees, which means that the desired polygon has more than 7 sides.  Meanwhile, the angle measures in a polygon with 8 sides sum to $180(8-2) = 1080$ degrees.  So, it's possible that the polygon has $</span><span class="ch">\\</span><span class="st">boxed</span><span class="sc">{8}</span><span class="st">$ sides, and that the last angle measures $10^</span><span class="ch">\\</span><span class="st">circ$.</span><span class="ch">\n\n</span><span class="st">To see that this is the only possibility, note that the angle measures in a polygon with 9 sides sum to $180(9-2) = 1260$ degrees.  Therefore, if the polygon has more than 8 sides, then the last interior angle must measure at least $1260^</span><span class="ch">\\</span><span class="st">circ - 1070^</span><span class="ch">\\</span><span class="st">circ = 190^</span><span class="ch">\\</span><span class="st">circ$.  But this is impossible because each interior angle of a convex polygon has measure less than $180^</span><span class="ch">\\</span><span class="st">circ$."</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"8"</span>,</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+</section>
+<section id="correctly-processing-various-mathematical-objects-special-text" class="level4">
+<h4 class="anchored" data-anchor-id="correctly-processing-various-mathematical-objects-special-text">Correctly Processing Various Mathematical Objects / Special Text</h4>
+<p><a href="https://tongyx361.github.io/symeval/core.html#evaluatormath"><code>EvaluatorMath</code></a>, based on regular expressions and <a href="https://www.sympy.org">SymPy</a> symbolic calculation, is able to correctly process</p>
+<ul>
+<li>most <strong>mathematical objects</strong> such as matrices (vectors), intervals, symbols besides numbers,</li>
+<li>as well as some <strong>special texts</strong> like bool expressions, dates and times.</li>
+</ul>
+<div id="cell-21" class="cell">
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>evaluator.eq(<span class="st">"x+y"</span>, <span class="st">"y+x"</span>) <span class="op">==</span> <span class="va">True</span>  <span class="co"># Expression</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>True</code></pre>
+</div>
+</div>
+<div id="cell-22" class="cell">
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>evaluator.eq(<span class="st">"</span><span class="ch">\\</span><span class="st">frac</span><span class="sc">{1}{2}</span><span class="st">"</span>, <span class="st">"0.5"</span>) <span class="op">==</span> <span class="va">True</span>  <span class="co"># LaTeX</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>True</code></pre>
+</div>
+</div>
+<div id="cell-23" class="cell">
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>evaluator.eq(</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"</span><span class="ch">\\</span><span class="st">begin</span><span class="sc">{array}</span><span class="st">1</span><span class="ch">\\\\</span><span class="st">2</span><span class="ch">\\</span><span class="st">end</span><span class="sc">{array}</span><span class="st">"</span>,</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"1,2"</span>,</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>)  <span class="co"># Matrix (Vector)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>True</code></pre>
+</div>
+</div>
+<div id="cell-24" class="cell">
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>evaluator.eq(<span class="st">"{1,2}"</span>, <span class="st">"{2,1}"</span>, compare_sets<span class="op">=</span><span class="va">True</span>)  <span class="co"># Set</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>True</code></pre>
+</div>
+</div>
+<div id="cell-25" class="cell">
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>evaluator.eq(<span class="st">"no"</span>, <span class="st">"false"</span>)  <span class="co"># Bool</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="co"># More mathematical objects and special texts ...</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display">
+<pre><code>True</code></pre>
+</div>
+</div>
+<p>More test cases:</p>
+<div id="cell-27" class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"251,7</span><span class="ch">\\\\</span><span class="st"> </span><span class="ch">\\</span><span class="st">noindent"</span>, <span class="st">"0"</span>), <span class="va">False</span>)</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"3.54*10^{-7}"</span>, <span class="st">"3.54e-07"</span>), <span class="va">True</span>)</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="vs">r"\frac</span><span class="sc">{1}{2}</span><span class="vs">"</span>, <span class="st">"0.5"</span>), <span class="va">True</span>)</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"1"</span>, <span class="st">"100"</span>), <span class="va">False</span>)</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"100"</span>, <span class="st">"1"</span>), <span class="va">False</span>)</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"3.04"</span>, <span class="st">"0.0304"</span>, <span class="va">False</span>), <span class="va">True</span>)</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq([<span class="st">"0.0304"</span>, <span class="fl">0.0304</span>], <span class="st">"3.04"</span>), <span class="va">True</span>)</span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"x&lt;-1"</span>, <span class="st">"x&gt;3"</span>), <span class="va">False</span>)</span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>test_eq(</span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>    evaluator.eq(<span class="st">"(-</span><span class="ch">\\</span><span class="st">infty,0)</span><span class="ch">\\</span><span class="st">cup(0,</span><span class="ch">\\</span><span class="st">infty)"</span>, <span class="st">"(-</span><span class="ch">\\</span><span class="st">infty,0)</span><span class="ch">\\</span><span class="st">cup(0,</span><span class="ch">\\</span><span class="st">infty)"</span>),</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>    <span class="va">True</span>,</span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"1+2,2+1"</span>, <span class="st">"2+1,1+2"</span>), <span class="va">True</span>)</span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"5"</span>, <span class="st">"5"</span>), <span class="va">True</span>)</span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"0.1 + 0.2"</span>, <span class="st">"0.3"</span>), <span class="va">True</span>)  <span class="co"># `0.1 + 0.2 == 0.3` is `False`</span></span>
+<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"x + y"</span>, <span class="st">"y + x"</span>), <span class="va">True</span>)</span>
+<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"C"</span>, <span class="st">"C"</span>), <span class="va">True</span>)</span>
+<span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"1,234"</span>, <span class="st">"1234"</span>), <span class="va">True</span>)</span>
+<span id="cb28-19"><a href="#cb28-19" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"12,34"</span>, <span class="st">"(12,34)"</span>), <span class="va">True</span>)</span>
+<span id="cb28-20"><a href="#cb28-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-21"><a href="#cb28-21" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"</span><span class="ch">\\</span><span class="st">$ 5"</span>, <span class="st">"5"</span>), <span class="va">True</span>)</span>
+<span id="cb28-22"><a href="#cb28-22" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"3 * </span><span class="ch">\\</span><span class="st">sqrt</span><span class="sc">{13}</span><span class="st">"</span>, <span class="st">"3</span><span class="ch">\\</span><span class="st">sqrt</span><span class="sc">{13}</span><span class="st">"</span>), <span class="va">True</span>)</span>
+<span id="cb28-23"><a href="#cb28-23" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"</span><span class="ch">\\</span><span class="st">pi/2"</span>, <span class="st">"</span><span class="ch">\\</span><span class="st">frac{</span><span class="ch">\\</span><span class="st">pi}</span><span class="sc">{2}</span><span class="st">"</span>), <span class="va">True</span>)</span>
+<span id="cb28-24"><a href="#cb28-24" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"(3,</span><span class="ch">\\</span><span class="st">pi/2)"</span>, <span class="st">"(3,</span><span class="ch">\\</span><span class="st">frac{</span><span class="ch">\\</span><span class="st">pi}</span><span class="sc">{2}</span><span class="st">)"</span>), <span class="va">True</span>)</span>
+<span id="cb28-25"><a href="#cb28-25" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"23000"</span>, <span class="st">"</span><span class="ch">\\</span><span class="st">$23{,}000"</span>), <span class="va">True</span>)</span>
+<span id="cb28-26"><a href="#cb28-26" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="vs">r"\left(1,2\right)"</span>, <span class="vs">r"\left(2,1\right)"</span>, compare_sets<span class="op">=</span><span class="va">True</span>), <span class="va">True</span>)</span>
+<span id="cb28-27"><a href="#cb28-27" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"White"</span>, <span class="st">"white"</span>), <span class="va">True</span>)</span>
+<span id="cb28-28"><a href="#cb28-28" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"[0,3)"</span>, <span class="st">"[0,1]"</span>), <span class="va">False</span>)</span>
+<span id="cb28-29"><a href="#cb28-29" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"[0,1]"</span>, <span class="st">"[0,3)"</span>), <span class="va">False</span>)</span>
+<span id="cb28-30"><a href="#cb28-30" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"1001.5"</span>, <span class="st">"1001"</span>), <span class="va">False</span>)</span>
+<span id="cb28-31"><a href="#cb28-31" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"</span><span class="ch">\\</span><span class="st">frac</span><span class="sc">{2003}{2}</span><span class="st">"</span>, <span class="st">"1001"</span>), <span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<div id="cell-28" class="cell">
+<div class="sourceCode cell-code" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.eq(<span class="st">"-2,1"</span>, <span class="st">"1,-2"</span>, compare_sets<span class="op">=</span><span class="va">True</span>), <span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="normalized-majority-voting" class="level4">
+<h4 class="anchored" data-anchor-id="normalized-majority-voting">Normalized Majority Voting</h4>
+<div id="cell-30" class="cell">
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>maj_answers_list, norm_answers_list <span class="op">=</span> evaluator.batch_get_maj_answers(</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>    [[<span class="st">""</span>, <span class="st">""</span>, <span class="st">"1"</span>, <span class="st">"2"</span>, <span class="st">"2"</span>, <span class="st">"3"</span>, <span class="st">"3"</span>, <span class="st">"3"</span>]]</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>maj_answers_list <span class="op">=</span> <span class="sc">}</span><span class="ss"> &lt;- </span><span class="sc">{</span>norm_answers_list <span class="op">=</span> <span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Judging: 100%|██████████| 7/7 [00:00&lt;00:00, 55188.21it/s]</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>maj_answers_list = [['', '', '1', '1', '2', '2', '2', '3']] &lt;- norm_answers_list = [['', '', '1', '2', '2', '3', '3', '3']]</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code></code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="parsing-latex" class="level3">
+<h3 class="anchored" data-anchor-id="parsing-latex">Parsing LaTeX</h3>
+<section id="interval" class="level4">
+<h4 class="anchored" data-anchor-id="interval">Interval</h4>
+<div id="cell-33" class="cell">
+<div class="sourceCode cell-code" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> symeval <span class="im">import</span> latex2sympy_interval</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="cell-34" class="cell">
+<div class="sourceCode cell-code" id="cb35"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>latex2sympy_interval(<span class="st">"(-11,-10)</span><span class="ch">\\</span><span class="st">cup</span><span class="ch">\\</span><span class="st">{-</span><span class="ch">\\</span><span class="st">sqrt</span><span class="sc">{110}</span><span class="ch">\\</span><span class="st">}"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display cell-output-markdown">
+<p><span class="math inline">\(\displaystyle \left(-11, -10\right)\)</span></p>
+</div>
+</div>
+<div id="cell-35" class="cell">
+<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>latex2sympy_interval(<span class="st">"(-</span><span class="ch">\\</span><span class="st">infty, 0) </span><span class="ch">\\</span><span class="st">cup (0, </span><span class="ch">\\</span><span class="st">infty)"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display cell-output-markdown">
+<p><span class="math inline">\(\displaystyle \left(-\infty, 0\right) \cup \left(0, \infty\right)\)</span></p>
+</div>
+</div>
+<div id="cell-36" class="cell">
+<div class="sourceCode cell-code" id="cb37"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>latex2sympy_interval(<span class="st">"(a+b,b]"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display cell-output-markdown">
+<p><span class="math inline">\(\displaystyle \left(a + b, b\right]\)</span></p>
+</div>
+</div>
+</section>
+<section id="matrix-vector" class="level4">
+<h4 class="anchored" data-anchor-id="matrix-vector">Matrix / Vector</h4>
+<div id="cell-38" class="cell">
+<div class="sourceCode cell-code" id="cb38"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> symeval <span class="im">import</span> EvaluatorMathBatch</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> EvaluatorMathBatch()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="cell-39" class="cell">
+<div class="sourceCode cell-code" id="cb39"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>evaluator.latex2matrix(<span class="vs">r"\sqrt{400\cos^2(9\pi/44)},\frac{\pi}</span><span class="sc">{4}</span><span class="vs">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display cell-output-markdown">
+<p><span class="math inline">\(\displaystyle \left[\begin{matrix}\sqrt{400 \cos^{2}{\left(\frac{9 \pi}{44} \right)}} &amp; \frac{\pi}{4}\end{matrix}\right]\)</span></p>
+</div>
+</div>
+<div id="cell-40" class="cell">
+<div class="sourceCode cell-code" id="cb40"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>evaluator.latex2matrix(</span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>    <span class="vs">r"\begin</span><span class="sc">{pmatrix}</span><span class="vs"> \frac</span><span class="sc">{1}{2}</span><span class="vs"> &amp; 0 &amp; -\frac{\sqrt</span><span class="sc">{3}</span><span class="vs">}</span><span class="sc">{2}</span><span class="vs"> \\ 0 &amp; 1 &amp; 0 \\ \frac{\sqrt</span><span class="sc">{3}</span><span class="vs">}</span><span class="sc">{2}</span><span class="vs"> &amp; 0 &amp; \frac</span><span class="sc">{1}{2}</span><span class="vs"> \end</span><span class="sc">{pmatrix}</span><span class="vs">"</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-display cell-output-markdown">
+<p><span class="math inline">\(\displaystyle \left[\begin{matrix}\frac{1}{2} &amp; 0 &amp; - \frac{\sqrt{3}}{2}\\0 &amp; 1 &amp; 0\\\frac{\sqrt{3}}{2} &amp; 0 &amp; \frac{1}{2}\end{matrix}\right]\)</span></p>
+</div>
+</div>
+<div id="cell-41" class="cell">
+<div class="sourceCode cell-code" id="cb41"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>test_eq(</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>    evaluator.latex2matrix(<span class="st">"</span><span class="ch">\\</span><span class="st">begin</span><span class="sc">{pmatrix}</span><span class="st">-18</span><span class="ch">\\\\</span><span class="st">-49</span><span class="ch">\\\\</span><span class="st">96</span><span class="ch">\\</span><span class="st">end</span><span class="sc">{pmatrix}</span><span class="st">"</span>),</span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>    Matrix([[<span class="op">-</span><span class="dv">18</span>, <span class="op">-</span><span class="dv">49</span>, <span class="dv">96</span>]]),</span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>test_eq(</span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a>    evaluator.latex2matrix(<span class="st">"</span><span class="ch">\\</span><span class="st">begin</span><span class="sc">{pmatrix}</span><span class="st"> 2 &amp; 3 </span><span class="ch">\\\\</span><span class="st"> 0 &amp; -2 </span><span class="ch">\\</span><span class="st">end</span><span class="sc">{pmatrix}</span><span class="st">"</span>),</span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a>    Matrix([[<span class="dv">2</span>, <span class="dv">3</span>], [<span class="dv">0</span>, <span class="op">-</span><span class="dv">2</span>]]),</span>
+<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+</section>
+<section id="normalization" class="level3">
+<h3 class="anchored" data-anchor-id="normalization">Normalization</h3>
+<div id="cell-43" class="cell">
+<div class="sourceCode cell-code" id="cb42"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.norm_math_str(<span class="st">"251,7</span><span class="ch">\\\\</span><span class="st"> </span><span class="ch">\\</span><span class="st">noindent"</span>), <span class="st">"251,7"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="cell-44" class="cell">
+<div class="sourceCode cell-code" id="cb43"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a>test_eq(fix_a_slash_b(<span class="st">"(3/4)</span><span class="ch">\\</span><span class="st">sqrt</span><span class="sc">{3}</span><span class="st">"</span>), <span class="st">"(</span><span class="ch">\\</span><span class="st">frac</span><span class="sc">{3}{4}</span><span class="st">)</span><span class="ch">\\</span><span class="st">sqrt</span><span class="sc">{3}</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="cell-45" class="cell">
+<div class="sourceCode cell-code" id="cb44"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.norm_pm(<span class="st">"x</span><span class="ch">\\</span><span class="st">pmy"</span>), <span class="st">"x-y,x+y"</span>)</span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.norm_pm(<span class="st">"a</span><span class="ch">\\</span><span class="st">mpb"</span>), <span class="st">"a-b,a+b"</span>)</span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.norm_pm(<span class="st">"1</span><span class="ch">\\</span><span class="st">pm</span><span class="ch">\\</span><span class="st">sqrt</span><span class="sc">{19}</span><span class="st">"</span>), <span class="st">"1-</span><span class="ch">\\</span><span class="st">sqrt</span><span class="sc">{19}</span><span class="st">,1+</span><span class="ch">\\</span><span class="st">sqrt</span><span class="sc">{19}</span><span class="st">"</span>)</span>
+<span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.norm_pm(<span class="vs">r"\{1\pm\sqrt</span><span class="sc">{5}</span><span class="vs">,-2\}"</span>), <span class="st">"1-</span><span class="ch">\\</span><span class="st">sqrt</span><span class="sc">{5}</span><span class="st">,1+</span><span class="ch">\\</span><span class="st">sqrt</span><span class="sc">{5}</span><span class="st">,-2"</span>)</span>
+<span id="cb44-5"><a href="#cb44-5" aria-hidden="true" tabindex="-1"></a>test_eq(</span>
+<span id="cb44-6"><a href="#cb44-6" aria-hidden="true" tabindex="-1"></a>    evaluator.norm_pm(<span class="st">"</span><span class="ch">\\</span><span class="st">(</span><span class="ch">\\</span><span class="st">frac{1</span><span class="ch">\\</span><span class="st">pm</span><span class="ch">\\</span><span class="st">sqrt</span><span class="sc">{17}</span><span class="st">}</span><span class="sc">{4}</span><span class="ch">\\</span><span class="st">)"</span>),</span>
+<span id="cb44-7"><a href="#cb44-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"</span><span class="ch">\\</span><span class="st">frac{1-</span><span class="ch">\\</span><span class="st">sqrt</span><span class="sc">{17}</span><span class="st">}</span><span class="sc">{4}</span><span class="st">,</span><span class="ch">\\</span><span class="st">frac{1+</span><span class="ch">\\</span><span class="st">sqrt</span><span class="sc">{17}</span><span class="st">}</span><span class="sc">{4}</span><span class="st">"</span>,</span>
+<span id="cb44-8"><a href="#cb44-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb44-9"><a href="#cb44-9" aria-hidden="true" tabindex="-1"></a>test_eq(</span>
+<span id="cb44-10"><a href="#cb44-10" aria-hidden="true" tabindex="-1"></a>    evaluator.norm_pm(<span class="vs">r"\frac{1\pm\sqrt{1-\frac</span><span class="sc">{2}</span><span class="vs">{\sqrt</span><span class="sc">{3}}}</span><span class="vs">}</span><span class="sc">{1}</span><span class="vs">"</span>),</span>
+<span id="cb44-11"><a href="#cb44-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">"</span><span class="ch">\\</span><span class="st">frac{1-</span><span class="ch">\\</span><span class="st">sqrt{1-</span><span class="ch">\\</span><span class="st">frac</span><span class="sc">{2}</span><span class="st">{</span><span class="ch">\\</span><span class="st">sqrt</span><span class="sc">{3}}}</span><span class="st">}</span><span class="sc">{1}</span><span class="st">,</span><span class="ch">\\</span><span class="st">frac{1+</span><span class="ch">\\</span><span class="st">sqrt{1-</span><span class="ch">\\</span><span class="st">frac</span><span class="sc">{2}</span><span class="st">{</span><span class="ch">\\</span><span class="st">sqrt</span><span class="sc">{3}}}</span><span class="st">}</span><span class="sc">{1}</span><span class="st">"</span>,</span>
+<span id="cb44-12"><a href="#cb44-12" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="cell-46" class="cell">
+<div class="sourceCode cell-code" id="cb45"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a>test_eq(norm_deg(<span class="vs">r"20^\circ"</span>), <span class="vs">r"20"</span>)</span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>test_eq(norm_deg(<span class="vs">r"\sin 20^\circ"</span>), <span class="vs">r"\sin {20*\frac{\pi}</span><span class="sc">{180}</span><span class="vs">}"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="cell-47" class="cell">
+<div class="sourceCode cell-code" id="cb46"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.norm_basic_fn(<span class="vs">r"sinx"</span>), <span class="vs">r"\sin^</span><span class="sc">{1}</span><span class="vs">x"</span>)</span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.norm_basic_fn(<span class="vs">r"\sin^2x"</span>), <span class="vs">r"\sin^</span><span class="sc">{2}</span><span class="vs">x"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="processing-sets" class="level3">
+<h3 class="anchored" data-anchor-id="processing-sets">Processing Sets</h3>
+<div id="cell-49" class="cell">
+<div class="sourceCode cell-code" id="cb47"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.extract_set(<span class="st">"{2,1}"</span>), [<span class="st">"1"</span>, <span class="st">"2"</span>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="cell-50" class="cell">
+<div class="sourceCode cell-code" id="cb48"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a>test_eq(is_set(<span class="st">"{2,1}"</span>), <span class="va">True</span>)</span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a>test_eq(is_set(<span class="st">"orange"</span>), <span class="va">False</span>)</span>
+<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a>test_eq(is_set(<span class="st">"x&lt;-1orx&gt;3"</span>), <span class="va">True</span>)</span>
+<span id="cb48-4"><a href="#cb48-4" aria-hidden="true" tabindex="-1"></a>test_eq(is_set(<span class="st">"(3/4)sqrt(3)"</span>), <span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="manipulating-strings" class="level3">
+<h3 class="anchored" data-anchor-id="manipulating-strings">Manipulating Strings</h3>
+<div id="cell-52" class="cell">
+<div class="sourceCode cell-code" id="cb49"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a>test_eq(evaluator.remove_first_paren_pair(<span class="st">"</span><span class="sc">{white}</span><span class="st">"</span>, <span class="st">"{"</span>), <span class="st">"white"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+</section>
+<section id="contribution-guidelines" class="level2">
+<h2 class="anchored" data-anchor-id="contribution-guidelines">Contribution Guidelines</h2>
+<section id="setup" class="level3">
+<h3 class="anchored" data-anchor-id="setup">Setup</h3>
+<p>For intended contributors, we recommend installing the package with the <code>dev</code> extras and setting up the pre-commit hooks by running:</p>
+<pre class="shell"><code>git clone https://github.com/tongyx361/symeval.git
+cd symeval
+pip install ".[dev]"
+pre-commit install
+conda install quarto # For nbdev</code></pre>
+</section>
+<section id="file-structure" class="level3">
+<h3 class="anchored" data-anchor-id="file-structure">File Structure</h3>
+<pre><code>symeval
+├── utils # Repository utilities
+├── symeval # Package code for common utilities
+└── nbs # Notebooks and other files to run tests and generate documentation with https://nbdev.fast.ai</code></pre>
+</section>
+<section id="checklist-before-commit" class="level3">
+<h3 class="anchored" data-anchor-id="checklist-before-commit">Checklist Before Commit</h3>
+<p>Run the <a href="utils/prepare-commit.sh"><code>prepare-commit.sh</code></a> to clean the notebooks and export scripts for pipeline notebooks, generate documentation, run tests, render README if needed:</p>
+<pre><code>bash utils/prepare-commit.sh</code></pre>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp("https:\/\/tongyx361\.github\.io\/symeval");
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/tongyx361/symeval/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
